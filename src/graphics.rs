@@ -115,7 +115,7 @@ impl GraphicsContext {
         }
     }
 
-    pub fn draw(&mut self) {
+    pub fn draw(&mut self, filename: String) {
         let buf = CpuAccessibleBuffer::from_iter(
             self.device.clone(),
             BufferUsage::all(),
@@ -231,7 +231,7 @@ impl GraphicsContext {
 
         let buffer_content = buf.read().unwrap();
         let image = ImageBuffer::<Rgba<u8>, _>::from_raw(1024, 1024, &buffer_content[..]).unwrap();
-        image.save("triangle.png").unwrap();
+        image.save(filename.as_str()).unwrap();
         self.geometry.vertices.clear();
         self.geometry.indices.clear();
     }
