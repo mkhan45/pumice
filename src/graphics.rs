@@ -1,34 +1,29 @@
 use vulkano::device::{Device, DeviceExtensions, Features, Queue};
 use vulkano::format::Format;
-use vulkano::image::{Dimensions, StorageImage};
-use vulkano::instance::{Instance, InstanceExtensions, PhysicalDevice};
+use vulkano::instance::{Instance, PhysicalDevice};
 
 use vulkano::buffer::{BufferUsage, CpuAccessibleBuffer};
-use vulkano::command_buffer::{AutoCommandBuffer, AutoCommandBufferBuilder, CommandBuffer};
+use vulkano::command_buffer::AutoCommandBufferBuilder;
 
 use vulkano::sync::GpuFuture;
 
 use std::sync::Arc;
 
-use image::{ImageBuffer, Rgba};
-
 use vulkano::framebuffer::{Framebuffer, FramebufferAbstract, RenderPassAbstract};
 
 use vulkano::framebuffer::Subpass;
-use vulkano::pipeline::{vertex::TwoBuffersDefinition, GraphicsPipeline};
+use vulkano::pipeline::GraphicsPipeline;
 
 use vulkano::command_buffer::DynamicState;
 use vulkano::pipeline::viewport::Viewport;
 
 use vulkano::image::swapchain::SwapchainImage;
-use vulkano::swapchain::{PresentMode, Surface, SurfaceTransform, Swapchain};
+use vulkano::swapchain::{PresentMode, SurfaceTransform, Swapchain};
 
 use lyon::math::Point;
 use lyon::path::Path;
 use lyon::tessellation::basic_shapes;
-use lyon::tessellation::geometry_builder::{
-    simple_builder, BuffersBuilder, FillGeometryBuilder, GeometryBuilder,
-};
+use lyon::tessellation::geometry_builder::simple_builder;
 use lyon::tessellation::math::Rect;
 use lyon::tessellation::math::Size;
 use lyon::tessellation::FillTessellator;
@@ -220,9 +215,6 @@ impl GraphicsContext {
             None,
         )
         .expect("failed to create swapchain");
-
-        let (mut x, mut y) = (0.0, 0.0);
-        let (mut dx, mut dy) = (0.02, 0.03);
 
         let mut previous_frame_end =
             Box::new(vulkano::sync::now(self.device.clone())) as Box<dyn GpuFuture>;
