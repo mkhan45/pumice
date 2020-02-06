@@ -136,118 +136,6 @@ impl GraphicsContext {
         }
     }
 
-    pub fn draw(&mut self, image_num: usize, images: &Vec<Arc<SwapchainImage<Window>>>) -> AutoCommandBuffer {
-        let render_pass = Arc::new(
-            vulkano::single_pass_renderpass!(self.device.clone(),
-            attachments: {
-                color: {
-                    load: Clear,
-                    store: Store,
-                    format: Format::B8G8R8A8Srgb,
-                    samples: 1,
-                }
-            },
-            pass: {
-                color: [color],
-                depth_stencil: {}
-            }
-            )
-            .unwrap(),
-        );
-
-        let mut framebuffers = window_size_dependent_setup(&images, render_pass.clone(), &mut self.dynamic_state);
-        // let framebuffer = Arc::new(
-        //     Framebuffer::start(render_pass.clone())
-        //     .add(images)
-        //     .unwrap()
-        //     .build()
-        //     .unwrap(),
-        // );
-
-        // AutoCommandBufferBuilder::primary_one_time_submit(self.device.clone(), self.queue.family())
-        //     .unwrap()
-        //     .begin_render_pass(
-        //         framebuffers[image_num].clone(),
-        //         false,
-        //         vec![[0.0, 0.0, 1.0, 1.0].into()],
-        //     )
-        //     .unwrap()
-        //     .end_render_pass()
-        //     .unwrap();
-
-
-        let graphics_pipeline = Arc::new(
-            GraphicsPipeline::start()
-            .vertex_input_single_buffer::<Vertex>()
-            // .vertex_input(TwoBuffersDefinition::<Vertex, Color>::new())
-            .vertex_shader(self.vertex_shader.main_entry_point(), ())
-            .viewports_dynamic_scissors_irrelevant(1)
-            .fragment_shader(self.fragment_shader.main_entry_point(), ())
-            .render_pass(Subpass::from(render_pass.clone(), 0).unwrap())
-            .build(self.device.clone())
-            .unwrap(),
-        );
-
-        let vertex_buffer = self.geometry.vertices.iter().map(|vertex| Vertex {
-            position: [vertex.x, vertex.y],
-        });
-        let vertex_buffer =
-            CpuAccessibleBuffer::from_iter(self.device.clone(), BufferUsage::all(), vertex_buffer)
-            .unwrap();
-        let index_buffer = CpuAccessibleBuffer::from_iter(
-            self.device.clone(),
-            BufferUsage::all(),
-            self.geometry.indices.iter().cloned(),
-        )
-            .unwrap();
-
-        let clear_values = vec!([0.0, 0.0, 1.0, 1.0].into());
-
-        let command_buffer = AutoCommandBufferBuilder::primary_one_time_submit(
-            self.device.clone(),
-            self.queue.family(),
-        )
-            .unwrap()
-            .begin_render_pass(
-                framebuffers[image_num].clone(),
-                false,
-                clear_values,
-            )
-            .unwrap()
-            .draw_indexed(
-                graphics_pipeline.clone(),
-                &self.dynamic_state,
-                vertex_buffer.clone(),
-                index_buffer.clone(),
-                (),
-                (),
-            )
-            .unwrap()
-            .end_render_pass()
-            .unwrap()
-            // .copy_image_to_buffer(ima.clone(), buf.clone())
-            // .unwrap()
-            .build()
-            .unwrap();
-
-        // let future = previous_frame_end.join(acquire_future)
-        //     .then_execute(self.queue.clone(), command_buffer).unwrap()
-        //     .then_swapchain_present(self.queue.clone(), swapchain.clone(), image_num)
-        //     .then_signal_fence_and_flush();
-
-        // let finished = command_buffer.execute(self.queue.clone()).unwrap();
-        // finished
-        //     .then_signal_fence_and_flush()
-        //     .unwrap()
-        //     .wait(None)
-        //     .unwrap();
-
-        // let buffer_content = buf.read().unwrap();
-        // let image = ImageBuffer::<Rgba<u8>, _>::from_raw(1024, 1024, &buffer_content[..]).unwrap();
-        
-        command_buffer
-    }
-
     pub fn new_circle(&mut self, pos: impl Into<Point>, rad: f32) {
         let options = FillOptions::tolerance(0.0001);
         basic_shapes::fill_circle(
@@ -319,6 +207,38 @@ impl GraphicsContext {
         let (mut dx, mut dy) = (0.02, 0.03);
 
         let mut previous_frame_end = Box::new(vulkano::sync::now(self.device.clone())) as Box<dyn GpuFuture>;
+
+        let render_pass = Arc::new(
+            vulkano::single_pass_renderpass!(self.device.clone(),
+            attachments: {
+                color: {
+                    load: Clear,
+                    store: Store,
+                    format: Format::B8G8R8A8Srgb,
+                    samples: 1,
+                }
+            },
+            pass: {
+                color: [color],
+                depth_stencil: {}
+            }
+            )
+            .unwrap(),
+        );
+
+        let mut framebuffers = window_size_dependent_setup(&images, render_pass.clone(), &mut self.dynamic_state);
+
+        let graphics_pipeline = Arc::new(
+            GraphicsPipeline::start()
+            .vertex_input_single_buffer::<Vertex>()
+            // .vertex_input(TwoBuffersDefinition::<Vertex, Color>::new())
+            .vertex_shader(self.vertex_shader.main_entry_point(), ())
+            .viewports_dynamic_scissors_irrelevant(1)
+            .fragment_shader(self.fragment_shader.main_entry_point(), ())
+            .render_pass(Subpass::from(render_pass.clone(), 0).unwrap())
+            .build(self.device.clone())
+            .unwrap(),
+        );
         loop {
             let (image_num, acquire_future) = vulkano::swapchain::acquire_next_image(swapchain.clone(), None).unwrap();
             // self.new_circle([x, y], 0.2);
@@ -328,9 +248,49 @@ impl GraphicsContext {
             // x += dx;
             // y += dy;
 
-            std::thread::sleep_ms(16);
+            let command_buffer = {
+                let vertex_buffer = self.geometry.vertices.iter().map(|vertex| Vertex {
+                    position: [vertex.x, vertex.y],
+                });
+                let vertex_buffer =
+                    CpuAccessibleBuffer::from_iter(self.device.clone(), BufferUsage::all(), vertex_buffer)
+                    .unwrap();
+                let index_buffer = CpuAccessibleBuffer::from_iter(
+                    self.device.clone(),
+                    BufferUsage::all(),
+                    self.geometry.indices.iter().cloned(),
+                )
+                    .unwrap();
 
-            let command_buffer = self.draw(image_num, &images);
+                let clear_values = vec!([0.0, 0.0, 1.0, 1.0].into());
+
+                AutoCommandBufferBuilder::primary_one_time_submit(
+                    self.device.clone(),
+                    self.queue.family(),
+                )
+                    .unwrap()
+                    .begin_render_pass(
+                        framebuffers[image_num].clone(),
+                        false,
+                        clear_values,
+                    )
+                    .unwrap()
+                    .draw_indexed(
+                        graphics_pipeline.clone(),
+                        &self.dynamic_state,
+                        vertex_buffer.clone(),
+                        index_buffer.clone(),
+                        (),
+                        (),
+                    )
+                    .unwrap()
+                    .end_render_pass()
+                    .unwrap()
+                    // .copy_image_to_buffer(ima.clone(), buf.clone())
+                    // .unwrap()
+                    .build()
+                    .unwrap()
+                };
 
             let future = previous_frame_end.join(acquire_future)
                 .then_execute(self.queue.clone(), command_buffer).unwrap()
