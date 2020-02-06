@@ -1,5 +1,5 @@
 [package]
-name = "game-engine"
+name = "gameengine"
 version = "0.1.0"
 authors = ["Mikail Khan <mikail.khan45@gmail.com>"]
 edition = "2018"
