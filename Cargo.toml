@@ -8,6 +8,7 @@ edition = "2018"
 
 [dependencies]
 vulkano = "0.16.0"
+vulkano-win = "0.16.0"
 
 shaderc = "0.6.0"
 shaderc-sys = "0.6.0"
@@ -15,6 +16,8 @@ shaderc-sys = "0.6.0"
 image = "0.21"
 
 lyon = "0.15.5"
+
+winit = "0.19.5"
 
 [dependencies.vulkano-shaders]
 version = "0.16.0"
