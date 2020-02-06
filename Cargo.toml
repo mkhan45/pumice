@@ -25,3 +25,6 @@ features = ["shaderc-build-from-source"]
 # [features]
 # shaderc_fix = ["shaderc/build-from-source"]
 # shaderc_fix = ["vulkano-shaders/shaderc-build-from-source"]
+#
+[dev-dependencies]
+rand = "0.7.3"

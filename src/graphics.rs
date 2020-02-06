@@ -225,7 +225,7 @@ impl GraphicsContext {
                 color: {
                     load: Clear,
                     store: Store,
-                    format: Format::B8G8R8A8Srgb,
+                    format: swapchain.format(),
                     samples: 1,
                 }
             },

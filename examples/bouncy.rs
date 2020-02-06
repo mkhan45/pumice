@@ -1,7 +1,5 @@
-mod graphics;
-use graphics::GraphicsContext;
-
-extern crate winit;
+use pumice::GraphicsContext;
+use pumice::winit;
 
 const RADIUS: f32 = 0.175;
 
