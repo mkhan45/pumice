@@ -297,7 +297,7 @@ impl GraphicsContext {
         );
     }
 
-    pub fn run(mut self) {
+    pub fn run<D>(mut self, data: &mut D, update: &dyn Fn(&mut GraphicsContext, &mut D)) {
         let mut events_loop = EventsLoop::new();
         let surface = WindowBuilder::new().build_vk_surface(&events_loop, self.instance.clone()).unwrap();
 
@@ -321,17 +321,12 @@ impl GraphicsContext {
         let mut previous_frame_end = Box::new(vulkano::sync::now(self.device.clone())) as Box<dyn GpuFuture>;
         loop {
             let (image_num, acquire_future) = vulkano::swapchain::acquire_next_image(swapchain.clone(), None).unwrap();
-            self.new_circle([x, y], 0.2);
+            // self.new_circle([x, y], 0.2);
 
             // main loop stuff goes here
-            x += dx;
-            y += dy;
-            if x + 0.2 >= 1.0 || x - 0.2 <= -1.0 {
-                dx *= -1.0;
-            }
-            if y + 0.2 >= 1.0 || y - 0.2 <= -1.0 {
-                dy *= -1.0;
-            }
+            update(&mut self, data);
+            // x += dx;
+            // y += dy;
 
             std::thread::sleep_ms(16);
 
