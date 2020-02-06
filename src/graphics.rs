@@ -181,7 +181,7 @@ impl GraphicsContext {
         );
     }
 
-    pub fn run<D>(mut self, data: &mut D, update: &dyn Fn(&mut GraphicsContext, &mut D)) {
+    pub fn run<D>(mut self, data: &mut D, update: &dyn Fn(&mut GraphicsContext, &mut D), handle_event: &dyn Fn(&winit::Event, &mut D)) {
         let mut events_loop = EventsLoop::new();
         let surface = WindowBuilder::new()
             .build_vk_surface(&events_loop, self.instance.clone())
@@ -365,6 +365,7 @@ impl GraphicsContext {
 
             let mut close = false;
             events_loop.poll_events(|event| {
+                handle_event(&event, data);
                 match event {
                     winit::Event::WindowEvent {
                         event: winit::WindowEvent::CloseRequested,

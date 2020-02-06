@@ -26,6 +26,9 @@ fn update(ctx: &mut GraphicsContext, data: &mut Data) {
     }
 }
 
+fn handle_event(event: &winit::Event, data: &mut Data) {
+}
+
 fn main() {
     let ctx = GraphicsContext::new();
     let mut data = Data {
@@ -35,5 +38,5 @@ fn main() {
         dy: -0.01,
     };
 
-    ctx.run::<Data>(&mut data, &update);
+    ctx.run::<Data>(&mut data, &update, &handle_event);
 }
