@@ -137,13 +137,6 @@ impl GraphicsContext {
     }
 
     pub fn draw(&mut self, image_num: usize, images: &Vec<Arc<SwapchainImage<Window>>>) -> AutoCommandBuffer {
-        let buf = CpuAccessibleBuffer::from_iter(
-            self.device.clone(),
-            BufferUsage::all(),
-            (0..1024 * 1024 * 4).map(|_| 0u8),
-        )
-            .expect("failed to create buffer");
-
         let render_pass = Arc::new(
             vulkano::single_pass_renderpass!(self.device.clone(),
             attachments: {
@@ -208,6 +201,8 @@ impl GraphicsContext {
         )
             .unwrap();
 
+        let clear_values = vec!([0.0, 0.0, 1.0, 1.0].into());
+
         let command_buffer = AutoCommandBufferBuilder::primary_one_time_submit(
             self.device.clone(),
             self.queue.family(),
@@ -216,7 +211,7 @@ impl GraphicsContext {
             .begin_render_pass(
                 framebuffers[image_num].clone(),
                 false,
-                vec![[0.0, 0.0, 1.0, 1.0].into()],
+                clear_values,
             )
             .unwrap()
             .draw_indexed(
@@ -249,8 +244,6 @@ impl GraphicsContext {
 
         // let buffer_content = buf.read().unwrap();
         // let image = ImageBuffer::<Rgba<u8>, _>::from_raw(1024, 1024, &buffer_content[..]).unwrap();
-        // self.geometry.vertices.clear();
-        // self.geometry.indices.clear();
         
         command_buffer
     }
@@ -322,9 +315,26 @@ impl GraphicsContext {
         SurfaceTransform::Identity, alpha, PresentMode::Fifo, true, None)
             .expect("failed to create swapchain");
 
+        let (mut x, mut y) = (0.0, 0.0);
+        let (mut dx, mut dy) = (0.02, 0.03);
+
         let mut previous_frame_end = Box::new(vulkano::sync::now(self.device.clone())) as Box<dyn GpuFuture>;
         loop {
             let (image_num, acquire_future) = vulkano::swapchain::acquire_next_image(swapchain.clone(), None).unwrap();
+            self.new_circle([x, y], 0.2);
+
+            // main loop stuff goes here
+            x += dx;
+            y += dy;
+            if x + 0.2 >= 1.0 || x - 0.2 <= -1.0 {
+                dx *= -1.0;
+            }
+            if y + 0.2 >= 1.0 || y - 0.2 <= -1.0 {
+                dy *= -1.0;
+            }
+
+            std::thread::sleep_ms(16);
+
             let command_buffer = self.draw(image_num, &images);
 
             let future = previous_frame_end.join(acquire_future)
@@ -341,9 +351,11 @@ impl GraphicsContext {
                     previous_frame_end = Box::new(vulkano::sync::now(self.device.clone())) as Box<_>;
                 }
             }
+            self.geometry.vertices.clear();
+            self.geometry.indices.clear();
 
             let mut close = false;
-            events_loop.poll_events(move |event|{
+            events_loop.poll_events(|event|{
                 match event {
                     winit::Event::WindowEvent { event: winit::WindowEvent::CloseRequested, .. } => {
                         close = true;
@@ -351,8 +363,9 @@ impl GraphicsContext {
                     _ => {},
                 };
             });
+
             if close {
-                break;
+                return;
             }
         }
     }
