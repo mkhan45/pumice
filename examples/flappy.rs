@@ -61,6 +61,7 @@ fn update(ctx: &mut GraphicsContext, data: &mut Data) {
     ctx.new_rectangle(
         [BIRD_X - BIRD_WIDTH / 2.0, data.bird_y],
         [BIRD_WIDTH, BIRD_HEIGHT],
+        [1.0, 0.0, 0.0, 1.0],
     );
 
     // update pipes
@@ -69,8 +70,8 @@ fn update(ctx: &mut GraphicsContext, data: &mut Data) {
             let pos1 = [pipe_pair.x, pipe_pair.midpoint_y - PIPE_V_GAP - PIPE_HEIGHT];
             let pos2 = [pipe_pair.x, pipe_pair.midpoint_y + PIPE_V_GAP];
 
-            ctx.new_rectangle(pos1, [PIPE_WIDTH, PIPE_HEIGHT]);
-            ctx.new_rectangle(pos2, [PIPE_WIDTH, PIPE_HEIGHT]);
+            ctx.new_rectangle(pos1, [PIPE_WIDTH, PIPE_HEIGHT], [0.0, 1.0, 0.0, 1.0]);
+            ctx.new_rectangle(pos2, [PIPE_WIDTH, PIPE_HEIGHT], [0.0, 1.0, 0.0, 1.0]);
         });
 
         let max_x = data
@@ -147,5 +148,5 @@ fn main() {
 
     let mut data = Data::new();
 
-    ctx.run::<Data>(&mut data, &update, &handle_event);
+    ctx.run::<Data>(&mut data, &update, &handle_event, [0.95, 0.95, 0.95, 1.0]);
 }

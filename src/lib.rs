@@ -30,6 +30,8 @@ use lyon::tessellation::math::Rect;
 use lyon::tessellation::math::Size;
 use lyon::tessellation::FillTessellator;
 use lyon::tessellation::{FillOptions, VertexBuffers};
+use lyon::tessellation::BasicVertexConstructor;
+use lyon::tessellation::BuffersBuilder;
 
 use vulkano_win::VkSurfaceBuild;
 
@@ -41,18 +43,24 @@ use vulkano::swapchain::AcquireError;
 use vulkano::swapchain::SwapchainCreationError;
 use vulkano::sync::FlushError;
 
-#[derive(Default, Copy, Clone)]
+#[derive(Default, Copy, Clone, Debug)]
 pub struct Vertex {
     pub position: [f32; 2],
+    pub color: [f32; 4],
 }
 
-#[derive(Default, Copy, Clone)]
-struct Color {
-    rgba: [f32; 4],
-}
+vulkano::impl_vertex!(Vertex, position, color);
 
-vulkano::impl_vertex!(Vertex, position);
-vulkano::impl_vertex!(Color, rgba);
+struct WithColor([f32; 4]);
+
+impl BasicVertexConstructor<Vertex> for WithColor {
+    fn new_vertex(&mut self, position: Point) -> Vertex {
+        Vertex {
+            position: [position.x, position.y],
+            color: self.0,
+        }
+    }
+}
 
 mod vs {
     vulkano_shaders::shader! {
@@ -75,7 +83,7 @@ pub struct GraphicsContext {
     dynamic_state: DynamicState,
     vertex_shader: vs::Shader,
     fragment_shader: fs::Shader,
-    geometry: VertexBuffers<Point, u16>,
+    geometry: VertexBuffers<Vertex, u16>,
 }
 
 impl GraphicsContext {
@@ -134,56 +142,60 @@ impl GraphicsContext {
         }
     }
 
-    pub fn new_circle(&mut self, pos: impl Into<Point>, rad: f32) {
+    pub fn new_circle(&mut self, pos: impl Into<Point>, rad: f32, color: [f32; 4]) {
         let options = FillOptions::tolerance(0.0001);
+        let mut buffer_builder = BuffersBuilder::new(&mut self.geometry, WithColor(color));
         basic_shapes::fill_circle(
             pos.into(),
             rad,
             &options,
-            &mut simple_builder(&mut self.geometry),
+            &mut buffer_builder,
         );
     }
 
-    pub fn new_rectangle(&mut self, pos: impl Into<Point>, sides: impl Into<Size>) {
+    pub fn new_rectangle(&mut self, pos: impl Into<Point>, sides: impl Into<Size>, color: [f32; 4]) {
         let options = FillOptions::non_zero();
         let rect = Rect::new(pos.into(), sides.into());
-        basic_shapes::fill_rectangle(&rect, &options, &mut simple_builder(&mut self.geometry));
+        let mut buffer_builder = BuffersBuilder::new(&mut self.geometry, WithColor(color));
+        basic_shapes::fill_rectangle(&rect, &options, &mut buffer_builder);
     }
 
-    pub fn new_quad(&mut self, points: [impl Into<Point> + Copy; 4]) {
+    pub fn new_quad(&mut self, points: [impl Into<Point> + Copy; 4], color: [f32; 4]) {
         let options = FillOptions::non_zero();
+        let mut buffer_builder = BuffersBuilder::new(&mut self.geometry, WithColor(color));
         basic_shapes::fill_quad(
             points[0].into(),
             points[1].into(),
             points[2].into(),
             points[3].into(),
             &options,
-            &mut simple_builder(&mut self.geometry),
+            &mut buffer_builder,
         );
     }
 
-    pub fn new_triangle(&mut self, points: [impl Into<Point> + Copy; 3]) {
-        let options = FillOptions::default();
+    // pub fn new_triangle(&mut self, points: [impl Into<Point> + Copy; 3], color: [f32; 4]) {
+    //     let options = FillOptions::default();
+    //     let mut buffer_builder = BuffersBuilder::new(&mut self.geometry, WithColor(color));
 
-        let mut path_builder = Path::builder();
-        path_builder.move_to(points[0].into());
-        path_builder.line_to(points[1].into());
-        path_builder.line_to(points[2].into());
-        path_builder.close();
+    //     let mut path_builder = Path::builder();
+    //     path_builder.move_to(points[0].into());
+    //     path_builder.line_to(points[1].into());
+    //     path_builder.line_to(points[2].into());
+    //     path_builder.close();
 
-        let path = path_builder.build();
+    //     let path = path_builder.build();
 
-        let mut tesselator = FillTessellator::new();
-        tesselator.tessellate_with_ids(
-            path.id_iter(),
-            &path,
-            Some(&path),
-            &options,
-            &mut simple_builder(&mut self.geometry),
-        );
-    }
+    //     let mut tesselator = FillTessellator::new();
+    //     tesselator.tessellate_with_ids(
+    //         path.id_iter(),
+    //         &path,
+    //         Some(&path),
+    //         &options,
+    //         &mut buffer_builder,
+    //     );
+    // }
 
-    pub fn run<D>(mut self, data: &mut D, update: &dyn Fn(&mut GraphicsContext, &mut D), handle_event: &dyn Fn(&winit::Event, &mut D)) {
+    pub fn run<D>(mut self, data: &mut D, update: &dyn Fn(&mut GraphicsContext, &mut D), handle_event: &dyn Fn(&winit::Event, &mut D), clear_color: [f32; 4]) {
         let mut events_loop = EventsLoop::new();
         let surface = WindowBuilder::new()
             .build_vk_surface(&events_loop, self.instance.clone())
@@ -216,7 +228,7 @@ impl GraphicsContext {
             true,
             None,
         )
-        .expect("failed to create swapchain");
+            .expect("failed to create swapchain");
 
         let mut previous_frame_end =
             Box::new(vulkano::sync::now(self.device.clone())) as Box<dyn GpuFuture>;
@@ -244,14 +256,14 @@ impl GraphicsContext {
 
         let graphics_pipeline = Arc::new(
             GraphicsPipeline::start()
-                .vertex_input_single_buffer::<Vertex>()
-                // .vertex_input(TwoBuffersDefinition::<Vertex, Color>::new())
-                .vertex_shader(self.vertex_shader.main_entry_point(), ())
-                .viewports_dynamic_scissors_irrelevant(1)
-                .fragment_shader(self.fragment_shader.main_entry_point(), ())
-                .render_pass(Subpass::from(render_pass.clone(), 0).unwrap())
-                .build(self.device.clone())
-                .unwrap(),
+            .vertex_input_single_buffer::<Vertex>()
+            // .vertex_input(TwoBuffersDefinition::<Vertex, Color>::new())
+            .vertex_shader(self.vertex_shader.main_entry_point(), ())
+            .viewports_dynamic_scissors_irrelevant(1)
+            .fragment_shader(self.fragment_shader.main_entry_point(), ())
+            .render_pass(Subpass::from(render_pass.clone(), 0).unwrap())
+            .build(self.device.clone())
+            .unwrap(),
         );
 
         let mut recreate_swapchain = false;
@@ -287,57 +299,51 @@ impl GraphicsContext {
                     Err(AcquireError::OutOfDate) => {
                         recreate_swapchain = true;
                         continue;
-                    }
+                }
                     Err(err) => panic!("error acquiring next image {:?}", err),
                 };
-            // self.new_circle([x, y], 0.2);
 
             // main loop stuff goes here
             update(&mut self, data);
-            // x += dx;
-            // y += dy;
 
             let command_buffer = {
-                let vertex_buffer = self.geometry.vertices.iter().map(|vertex| Vertex {
-                    position: [vertex.x, vertex.y],
-                });
                 let vertex_buffer = CpuAccessibleBuffer::from_iter(
                     self.device.clone(),
                     BufferUsage::all(),
-                    vertex_buffer,
+                    self.geometry.vertices.iter().cloned(),
                 )
-                .unwrap();
+                    .unwrap();
                 let index_buffer = CpuAccessibleBuffer::from_iter(
                     self.device.clone(),
                     BufferUsage::all(),
                     self.geometry.indices.iter().cloned(),
                 )
-                .unwrap();
+                    .unwrap();
 
-                let clear_values = vec![[0.0, 0.0, 1.0, 1.0].into()];
+                let clear_values = vec![clear_color.into()];
 
                 AutoCommandBufferBuilder::primary_one_time_submit(
                     self.device.clone(),
                     self.queue.family(),
                 )
-                .unwrap()
-                .begin_render_pass(framebuffers[image_num].clone(), false, clear_values)
-                .unwrap()
-                .draw_indexed(
-                    graphics_pipeline.clone(),
-                    &self.dynamic_state,
-                    vertex_buffer.clone(),
-                    index_buffer.clone(),
-                    (),
-                    (),
-                )
-                .unwrap()
-                .end_render_pass()
-                .unwrap()
-                // .copy_image_to_buffer(ima.clone(), buf.clone())
-                // .unwrap()
-                .build()
-                .unwrap()
+                    .unwrap()
+                    .begin_render_pass(framebuffers[image_num].clone(), false, clear_values)
+                    .unwrap()
+                    .draw_indexed(
+                        graphics_pipeline.clone(),
+                        &self.dynamic_state,
+                        vertex_buffer.clone(),
+                        index_buffer.clone(),
+                        (),
+                        (),
+                    )
+                    .unwrap()
+                    .end_render_pass()
+                    .unwrap()
+                    // .copy_image_to_buffer(ima.clone(), buf.clone())
+                    // .unwrap()
+                    .build()
+                    .unwrap()
             };
 
             let future = previous_frame_end
@@ -409,11 +415,11 @@ fn window_size_dependent_setup(
         .map(|image| {
             Arc::new(
                 Framebuffer::start(render_pass.clone())
-                    .add(image.clone())
-                    .unwrap()
-                    .build()
-                    .unwrap(),
+                .add(image.clone())
+                .unwrap()
+                .build()
+                .unwrap(),
             ) as Arc<dyn FramebufferAbstract + Send + Sync>
         })
-        .collect::<Vec<_>>()
+    .collect::<Vec<_>>()
 }

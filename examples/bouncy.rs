@@ -11,7 +11,7 @@ struct Data {
 }
 
 fn update(ctx: &mut GraphicsContext, data: &mut Data) {
-    ctx.new_circle([data.x, data.y], RADIUS);
+    ctx.new_circle([data.x, data.y], RADIUS, [1.0, 0.0, 0.0, 1.0]);
 
     data.x += data.dx;
     data.y += data.dy;
@@ -36,5 +36,5 @@ fn main() {
         dy: -0.01,
     };
 
-    ctx.run::<Data>(&mut data, &update, &handle_event);
+    ctx.run::<Data>(&mut data, &update, &handle_event, [0.0, 0.0, 0.0, 1.0]);
 }
