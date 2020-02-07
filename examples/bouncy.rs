@@ -32,22 +32,20 @@ fn update(ctx: &mut GraphicsContext, data: &mut Data) {
 
 // Right now the winit events aren't preparsed in any way but I might change that
 fn handle_event(winit_event: &winit::Event, data: &mut Data) {
-    match winit_event {
-        winit::Event::DeviceEvent { event, .. } => match event {
-            winit::DeviceEvent::Key(input) => {
-                let keycode = input.virtual_keycode;
-                match keycode {
-                    Some(winit::VirtualKeyCode::Space) => {
-                        if input.state == winit::ElementState::Pressed {
-                            data.paused = !data.paused;
-                        }
-                    }
-                    _ => {}
+    if let winit::Event::DeviceEvent {
+        event: winit::DeviceEvent::Key(input),
+        ..
+    } = winit_event
+    {
+        let keycode = input.virtual_keycode;
+        match keycode {
+            Some(winit::VirtualKeyCode::Space) => {
+                if input.state == winit::ElementState::Pressed {
+                    data.paused = !data.paused;
                 }
             }
             _ => {}
-        },
-        _ => {}
+        }
     }
 }
 

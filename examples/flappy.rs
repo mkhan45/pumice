@@ -1,4 +1,4 @@
-use pumice::winit;
+use pumice::winit::{self, DeviceEvent, ElementState, VirtualKeyCode};
 use pumice::GraphicsContext;
 
 extern crate rand;
@@ -10,7 +10,7 @@ const BIRD_HEIGHT: f32 = 0.135;
 
 const PIPE_WIDTH: f32 = 0.275;
 const PIPE_HEIGHT: f32 = 1.5;
-const PIPE_V_GAP: f32 = 0.275;
+const PIPE_V_GAP: f32 = 0.265;
 const PIPE_H_GAP: f32 = 1.15;
 
 const GRAVITY: f32 = 0.002;
@@ -30,7 +30,7 @@ impl PipePair {
 
         PipePair {
             x,
-            midpoint_y: StdRng::from_entropy().sample(Uniform::from(-0.5..0.5)),
+            midpoint_y: StdRng::from_entropy().sample(Uniform::from(-0.6..0.6)),
         }
     }
 
@@ -120,30 +120,28 @@ fn update(ctx: &mut GraphicsContext, data: &mut Data) {
 }
 
 fn handle_event(winit_event: &winit::Event, data: &mut Data) {
-    match winit_event {
-        winit::Event::DeviceEvent { event, .. } => match event {
-            winit::DeviceEvent::Key(input) => {
-                let keycode = input.virtual_keycode;
-                match keycode {
-                    Some(winit::VirtualKeyCode::Space) => {
-                        if input.state == winit::ElementState::Pressed {
-                            if data.bird_vel >= 0.00 {
-                                data.bird_vel *= 0.5;
-                            }
-
-                            data.bird_vel += JUMP_VEL;
-
-                            if data.bird_vel <= -0.00 {
-                                data.bird_vel *= 0.5;
-                            }
-                        }
+    if let winit::Event::DeviceEvent {
+        event: DeviceEvent::Key(input),
+        ..
+    } = winit_event
+    {
+        let keycode = input.virtual_keycode;
+        match keycode {
+            Some(VirtualKeyCode::Space) => {
+                if input.state == ElementState::Pressed {
+                    if data.bird_vel >= 0.00 {
+                        data.bird_vel *= 0.5;
                     }
-                    _ => {}
+
+                    data.bird_vel += JUMP_VEL;
+
+                    if data.bird_vel <= -0.00 {
+                        data.bird_vel *= 0.5;
+                    }
                 }
             }
             _ => {}
-        },
-        _ => {}
+        }
     }
 }
 

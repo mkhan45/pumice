@@ -1,7 +1,6 @@
 pub use winit;
 
 use vulkano::device::{Device, DeviceExtensions, Features, Queue};
-use vulkano::format::Format;
 use vulkano::instance::{Instance, PhysicalDevice};
 
 use vulkano::buffer::{BufferUsage, CpuAccessibleBuffer};
@@ -65,14 +64,14 @@ impl BasicVertexConstructor<Vertex> for WithColor {
 mod vs {
     vulkano_shaders::shader! {
         ty: "vertex",
-        path: "src/triangle.vert",
+        path: "src/shaders/vertex.glsl",
     }
 }
 
 mod fs {
     vulkano_shaders::shader! {
         ty: "fragment",
-        path: "src/triangle.frag",
+        path: "src/shaders/fragment.glsl",
     }
 }
 
@@ -263,7 +262,6 @@ impl GraphicsContext {
         let graphics_pipeline = Arc::new(
             GraphicsPipeline::start()
                 .vertex_input_single_buffer::<Vertex>()
-                // .vertex_input(TwoBuffersDefinition::<Vertex, Color>::new())
                 .vertex_shader(self.vertex_shader.main_entry_point(), ())
                 .viewports_dynamic_scissors_irrelevant(1)
                 .fragment_shader(self.fragment_shader.main_entry_point(), ())
@@ -346,8 +344,6 @@ impl GraphicsContext {
                 .unwrap()
                 .end_render_pass()
                 .unwrap()
-                // .copy_image_to_buffer(ima.clone(), buf.clone())
-                // .unwrap()
                 .build()
                 .unwrap()
             };
