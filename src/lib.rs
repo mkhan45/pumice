@@ -28,10 +28,10 @@ use lyon::tessellation::basic_shapes;
 use lyon::tessellation::geometry_builder::simple_builder;
 use lyon::tessellation::math::Rect;
 use lyon::tessellation::math::Size;
-use lyon::tessellation::FillTessellator;
-use lyon::tessellation::{FillOptions, VertexBuffers};
 use lyon::tessellation::BasicVertexConstructor;
 use lyon::tessellation::BuffersBuilder;
+use lyon::tessellation::FillTessellator;
+use lyon::tessellation::{FillOptions, VertexBuffers};
 
 use vulkano_win::VkSurfaceBuild;
 
@@ -145,15 +145,15 @@ impl GraphicsContext {
     pub fn new_circle(&mut self, pos: impl Into<Point>, rad: f32, color: [f32; 4]) {
         let options = FillOptions::tolerance(0.0001);
         let mut buffer_builder = BuffersBuilder::new(&mut self.geometry, WithColor(color));
-        basic_shapes::fill_circle(
-            pos.into(),
-            rad,
-            &options,
-            &mut buffer_builder,
-        );
+        basic_shapes::fill_circle(pos.into(), rad, &options, &mut buffer_builder);
     }
 
-    pub fn new_rectangle(&mut self, pos: impl Into<Point>, sides: impl Into<Size>, color: [f32; 4]) {
+    pub fn new_rectangle(
+        &mut self,
+        pos: impl Into<Point>,
+        sides: impl Into<Size>,
+        color: [f32; 4],
+    ) {
         let options = FillOptions::non_zero();
         let rect = Rect::new(pos.into(), sides.into());
         let mut buffer_builder = BuffersBuilder::new(&mut self.geometry, WithColor(color));
@@ -195,7 +195,13 @@ impl GraphicsContext {
     //     );
     // }
 
-    pub fn run<D>(mut self, data: &mut D, update: &dyn Fn(&mut GraphicsContext, &mut D), handle_event: &dyn Fn(&winit::Event, &mut D), clear_color: [f32; 4]) {
+    pub fn run<D>(
+        mut self,
+        data: &mut D,
+        update: &dyn Fn(&mut GraphicsContext, &mut D),
+        handle_event: &dyn Fn(&winit::Event, &mut D),
+        clear_color: [f32; 4],
+    ) {
         let mut events_loop = EventsLoop::new();
         let surface = WindowBuilder::new()
             .build_vk_surface(&events_loop, self.instance.clone())
@@ -228,7 +234,7 @@ impl GraphicsContext {
             true,
             None,
         )
-            .expect("failed to create swapchain");
+        .expect("failed to create swapchain");
 
         let mut previous_frame_end =
             Box::new(vulkano::sync::now(self.device.clone())) as Box<dyn GpuFuture>;
@@ -256,14 +262,14 @@ impl GraphicsContext {
 
         let graphics_pipeline = Arc::new(
             GraphicsPipeline::start()
-            .vertex_input_single_buffer::<Vertex>()
-            // .vertex_input(TwoBuffersDefinition::<Vertex, Color>::new())
-            .vertex_shader(self.vertex_shader.main_entry_point(), ())
-            .viewports_dynamic_scissors_irrelevant(1)
-            .fragment_shader(self.fragment_shader.main_entry_point(), ())
-            .render_pass(Subpass::from(render_pass.clone(), 0).unwrap())
-            .build(self.device.clone())
-            .unwrap(),
+                .vertex_input_single_buffer::<Vertex>()
+                // .vertex_input(TwoBuffersDefinition::<Vertex, Color>::new())
+                .vertex_shader(self.vertex_shader.main_entry_point(), ())
+                .viewports_dynamic_scissors_irrelevant(1)
+                .fragment_shader(self.fragment_shader.main_entry_point(), ())
+                .render_pass(Subpass::from(render_pass.clone(), 0).unwrap())
+                .build(self.device.clone())
+                .unwrap(),
         );
 
         let mut recreate_swapchain = false;
@@ -299,7 +305,7 @@ impl GraphicsContext {
                     Err(AcquireError::OutOfDate) => {
                         recreate_swapchain = true;
                         continue;
-                }
+                    }
                     Err(err) => panic!("error acquiring next image {:?}", err),
                 };
 
@@ -312,13 +318,13 @@ impl GraphicsContext {
                     BufferUsage::all(),
                     self.geometry.vertices.iter().cloned(),
                 )
-                    .unwrap();
+                .unwrap();
                 let index_buffer = CpuAccessibleBuffer::from_iter(
                     self.device.clone(),
                     BufferUsage::all(),
                     self.geometry.indices.iter().cloned(),
                 )
-                    .unwrap();
+                .unwrap();
 
                 let clear_values = vec![clear_color.into()];
 
@@ -326,24 +332,24 @@ impl GraphicsContext {
                     self.device.clone(),
                     self.queue.family(),
                 )
-                    .unwrap()
-                    .begin_render_pass(framebuffers[image_num].clone(), false, clear_values)
-                    .unwrap()
-                    .draw_indexed(
-                        graphics_pipeline.clone(),
-                        &self.dynamic_state,
-                        vertex_buffer.clone(),
-                        index_buffer.clone(),
-                        (),
-                        (),
-                    )
-                    .unwrap()
-                    .end_render_pass()
-                    .unwrap()
-                    // .copy_image_to_buffer(ima.clone(), buf.clone())
-                    // .unwrap()
-                    .build()
-                    .unwrap()
+                .unwrap()
+                .begin_render_pass(framebuffers[image_num].clone(), false, clear_values)
+                .unwrap()
+                .draw_indexed(
+                    graphics_pipeline.clone(),
+                    &self.dynamic_state,
+                    vertex_buffer.clone(),
+                    index_buffer.clone(),
+                    (),
+                    (),
+                )
+                .unwrap()
+                .end_render_pass()
+                .unwrap()
+                // .copy_image_to_buffer(ima.clone(), buf.clone())
+                // .unwrap()
+                .build()
+                .unwrap()
             };
 
             let future = previous_frame_end
@@ -415,11 +421,11 @@ fn window_size_dependent_setup(
         .map(|image| {
             Arc::new(
                 Framebuffer::start(render_pass.clone())
-                .add(image.clone())
-                .unwrap()
-                .build()
-                .unwrap(),
+                    .add(image.clone())
+                    .unwrap()
+                    .build()
+                    .unwrap(),
             ) as Arc<dyn FramebufferAbstract + Send + Sync>
         })
-    .collect::<Vec<_>>()
+        .collect::<Vec<_>>()
 }

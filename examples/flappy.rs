@@ -1,5 +1,5 @@
-use pumice::GraphicsContext;
 use pumice::winit;
+use pumice::GraphicsContext;
 
 extern crate rand;
 use rand::prelude::*;
@@ -35,7 +35,11 @@ impl PipePair {
     }
 
     pub fn init_three() -> [Self; 3] {
-        [PipePair::new(1.0), PipePair::new(1.0 + PIPE_H_GAP), PipePair::new(1.0 + PIPE_H_GAP * 2.0)]
+        [
+            PipePair::new(1.0),
+            PipePair::new(1.0 + PIPE_H_GAP),
+            PipePair::new(1.0 + PIPE_H_GAP * 2.0),
+        ]
     }
 }
 
