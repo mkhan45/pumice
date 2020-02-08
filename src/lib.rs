@@ -44,6 +44,9 @@ use vulkano::swapchain::AcquireError;
 use vulkano::swapchain::SwapchainCreationError;
 use vulkano::sync::FlushError;
 
+pub mod error;
+pub use error::PumiceError;
+
 #[derive(Default, Copy, Clone, Debug)]
 pub struct Vertex {
     pub position: [f32; 2],
@@ -135,7 +138,7 @@ impl GraphicsContext {
             ..DynamicState::none()
         };
 
-        let mut events_loop = EventsLoop::new();
+        let events_loop = EventsLoop::new();
         let surface = WindowBuilder::new()
             .build_vk_surface(&events_loop, instance.clone())
             .unwrap();
@@ -154,10 +157,13 @@ impl GraphicsContext {
         }
     }
 
-    pub fn new_circle(&mut self, pos: impl Into<Point>, rad: f32, color: [f32; 4]) {
+    pub fn new_circle(&mut self, pos: impl Into<Point>, rad: f32, color: [f32; 4]) -> Result<(), PumiceError> {
         let options = FillOptions::tolerance(0.0001);
         let mut buffer_builder = BuffersBuilder::new(&mut self.geometry, WithColor(color));
-        basic_shapes::fill_circle(pos.into(), rad, &options, &mut buffer_builder);
+        match basic_shapes::fill_circle(pos.into(), rad, &options, &mut buffer_builder) {
+            Ok(_) => Ok(()),
+            Err(tesselate_error) => Err(PumiceError::from(tesselate_error)),
+        }
     }
 
     pub fn new_rectangle(
@@ -165,17 +171,20 @@ impl GraphicsContext {
         pos: impl Into<Point>,
         sides: impl Into<Size>,
         color: [f32; 4],
-    ) {
+    ) -> Result<(), PumiceError> {
         let options = FillOptions::non_zero();
         let rect = Rect::new(pos.into(), sides.into());
         let mut buffer_builder = BuffersBuilder::new(&mut self.geometry, WithColor(color));
-        basic_shapes::fill_rectangle(&rect, &options, &mut buffer_builder);
+        match basic_shapes::fill_rectangle(&rect, &options, &mut buffer_builder) {
+            Ok(_) => Ok(()),
+            Err(tesselate_error) => Err(PumiceError::from(tesselate_error)),
+        }
     }
 
-    pub fn new_quad(&mut self, points: [impl Into<Point> + Copy; 4], color: [f32; 4]) {
+    pub fn new_quad(&mut self, points: [impl Into<Point> + Copy; 4], color: [f32; 4]) -> Result<(), PumiceError> {
         let options = FillOptions::non_zero();
         let mut buffer_builder = BuffersBuilder::new(&mut self.geometry, WithColor(color));
-        basic_shapes::fill_quad(
+        let result = basic_shapes::fill_quad(
             points[0].into(),
             points[1].into(),
             points[2].into(),
@@ -183,6 +192,10 @@ impl GraphicsContext {
             &options,
             &mut buffer_builder,
         );
+        match result {
+            Ok(_) => Ok(()),
+            Err(tesselate_error) => Err(PumiceError::from(tesselate_error)),
+        }
     }
 
     // pub fn new_triangle(&mut self, points: [impl Into<Point> + Copy; 3], color: [f32; 4]) {
