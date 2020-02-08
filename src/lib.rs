@@ -87,7 +87,7 @@ pub struct GraphicsContext {
     geometry: VertexBuffers<Vertex, u16>,
     pub surface: Arc<vulkano::swapchain::Surface<Window>>,
     events_loop: EventsLoop,
-    pub scale: [f32; 2],
+    pub screen_maxes: [f32; 2],
 }
 
 impl GraphicsContext {
@@ -150,7 +150,7 @@ impl GraphicsContext {
             geometry: VertexBuffers::new(),
             surface,
             events_loop,
-            scale: [1.0, 1.0],
+            screen_maxes: [1.0, 1.0],
         }
     }
 
@@ -313,7 +313,7 @@ impl GraphicsContext {
 
             let uniform_buffer_subbuffer = {
                 let uniform_data = vs::ty::Data {
-                    scale: self.scale,
+                    scale: [1.0 / self.screen_maxes[0], 1.0 / self.screen_maxes[1]],
                 };
 
                 uniform_buffer.next(uniform_data).unwrap()

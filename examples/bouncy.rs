@@ -15,13 +15,18 @@ struct Data {
 // the main update function that accepts an &mut GraphicsContext and Data
 // drawing and updating data are both done here.
 fn update(ctx: &mut GraphicsContext, data: &mut Data) {
+    {
+        let window = ctx.surface.window();
+        let win_size = window.get_inner_size().unwrap();
+        ctx.screen_maxes = [(win_size.width / win_size.height) as f32, 1.0]
+    }
     ctx.new_circle([data.x, data.y], RADIUS, [1.0, 0.0, 0.0, 1.0]);
 
     if !data.paused {
         data.x += data.dx;
         data.y += data.dy;
 
-        if data.x + RADIUS >= 1.0 || data.x - RADIUS <= -1.0 {
+        if data.x + RADIUS >= ctx.screen_maxes[0] || data.x - RADIUS <= -ctx.screen_maxes[0] {
             data.dx *= -1.0;
         }
         if data.y + RADIUS >= 1.0 || data.y - RADIUS <= -1.0 {
