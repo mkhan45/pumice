@@ -9,14 +9,14 @@ const BIRD_WIDTH: f32 = 0.15;
 const BIRD_HEIGHT: f32 = 0.135;
 
 const PIPE_WIDTH: f32 = 0.275;
-const PIPE_HEIGHT: f32 = 1.5;
+const PIPE_HEIGHT: f32 = 2.5;
 const PIPE_V_GAP: f32 = 0.265;
 const PIPE_H_GAP: f32 = 1.15;
 
-const GRAVITY: f32 = 0.002;
+const GRAVITY: f32 = 0.0023;
 const JUMP_VEL: f32 = -0.075;
 
-const SPEED: f32 = 0.013;
+const SPEED: f32 = 0.015;
 
 #[derive(Copy, Clone)]
 struct PipePair {
@@ -30,15 +30,18 @@ impl PipePair {
 
         PipePair {
             x,
-            midpoint_y: StdRng::from_entropy().sample(Uniform::from(-0.6..0.6)),
+            midpoint_y: StdRng::from_entropy().sample(Uniform::from(-0.52..0.52)),
         }
     }
 
-    pub fn init_three() -> [Self; 3] {
+    pub fn init() -> [Self; 6] {
         [
             PipePair::new(1.0),
             PipePair::new(1.0 + PIPE_H_GAP),
             PipePair::new(1.0 + PIPE_H_GAP * 2.0),
+            PipePair::new(1.0 + PIPE_H_GAP * 3.0),
+            PipePair::new(1.0 + PIPE_H_GAP * 4.0),
+            PipePair::new(1.0 + PIPE_H_GAP * 5.0),
         ]
     }
 }
@@ -47,7 +50,7 @@ struct Data {
     bird_y: f32,
     bird_vel: f32,
     score: usize,
-    pipes: [PipePair; 3],
+    pipes: [PipePair; 6],
 }
 
 impl Data {
@@ -56,7 +59,7 @@ impl Data {
             bird_y: 0.0,
             bird_vel: -0.02,
             score: 0,
-            pipes: PipePair::init_three(),
+            pipes: PipePair::init(),
         }
     }
 }
@@ -87,6 +90,7 @@ fn update(ctx: &mut GraphicsContext, data: &mut Data) {
 
         let bird_y = data.bird_y;
         let mut score = data.score;
+
         data.pipes.iter_mut().for_each(|pipe_pair| {
             pipe_pair.x -= SPEED;
 
@@ -107,7 +111,7 @@ fn update(ctx: &mut GraphicsContext, data: &mut Data) {
                 }
             }
 
-            if pipe_pair.x <= -1.0 - PIPE_WIDTH {
+            if pipe_pair.x <= -2.0 - PIPE_WIDTH {
                 *pipe_pair = PipePair::new(max_x + PIPE_H_GAP);
                 score += 1;
             }

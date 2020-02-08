@@ -2,6 +2,7 @@ pub use winit;
 
 use vulkano::device::{Device, DeviceExtensions, Features, Queue};
 use vulkano::instance::{Instance, PhysicalDevice};
+use vulkano::descriptor::descriptor_set::PersistentDescriptorSet;
 
 use vulkano::buffer::{BufferUsage, CpuAccessibleBuffer};
 use vulkano::command_buffer::AutoCommandBufferBuilder;
@@ -20,6 +21,7 @@ use vulkano::pipeline::viewport::Viewport;
 
 use vulkano::image::swapchain::SwapchainImage;
 use vulkano::swapchain::{PresentMode, SurfaceTransform, Swapchain};
+use vulkano::buffer::CpuBufferPool;
 
 use lyon::math::Point;
 use lyon::path::Path;
@@ -113,7 +115,7 @@ impl GraphicsContext {
                 },
                 [(queue_family, 0.5)].iter().cloned(),
             )
-            .expect("failed to create device")
+                .expect("failed to create device")
         };
 
         let queue = queues.next().unwrap();
@@ -233,7 +235,7 @@ impl GraphicsContext {
             true,
             None,
         )
-        .expect("failed to create swapchain");
+            .expect("failed to create swapchain");
 
         let mut previous_frame_end =
             Box::new(vulkano::sync::now(self.device.clone())) as Box<dyn GpuFuture>;
@@ -261,16 +263,17 @@ impl GraphicsContext {
 
         let graphics_pipeline = Arc::new(
             GraphicsPipeline::start()
-                .vertex_input_single_buffer::<Vertex>()
-                .vertex_shader(self.vertex_shader.main_entry_point(), ())
-                .viewports_dynamic_scissors_irrelevant(1)
-                .fragment_shader(self.fragment_shader.main_entry_point(), ())
-                .render_pass(Subpass::from(render_pass.clone(), 0).unwrap())
-                .build(self.device.clone())
-                .unwrap(),
+            .vertex_input_single_buffer::<Vertex>()
+            .vertex_shader(self.vertex_shader.main_entry_point(), ())
+            .viewports_dynamic_scissors_irrelevant(1)
+            .fragment_shader(self.fragment_shader.main_entry_point(), ())
+            .render_pass(Subpass::from(render_pass.clone(), 0).unwrap())
+            .build(self.device.clone())
+            .unwrap(),
         );
 
         let mut recreate_swapchain = false;
+        let uniform_buffer = CpuBufferPool::<vs::ty::Data>::new(self.device.clone(), BufferUsage::all());
 
         loop {
             if recreate_swapchain {
@@ -297,13 +300,30 @@ impl GraphicsContext {
                 }
             }
 
+            let uniform_buffer_subbuffer = {
+                let window_size = window.get_inner_size().unwrap();
+                let scale = [(window_size.height / window_size.width) as f32, 1.0f32];
+                // let scale = [1.0f32, (window_size.width / window_size.height) as f32];
+
+                let uniform_data = vs::ty::Data {
+                    scale,
+                };
+
+                uniform_buffer.next(uniform_data).unwrap()
+            };
+
+            let set = Arc::new(PersistentDescriptorSet::start(graphics_pipeline.clone(), 0)
+                .add_buffer(uniform_buffer_subbuffer).unwrap()
+                .build().unwrap()
+            );
+
             let (image_num, acquire_future) =
                 match vulkano::swapchain::acquire_next_image(swapchain.clone(), None) {
                     Ok(result) => result,
                     Err(AcquireError::OutOfDate) => {
                         recreate_swapchain = true;
                         continue;
-                    }
+                }
                     Err(err) => panic!("error acquiring next image {:?}", err),
                 };
 
@@ -316,13 +336,13 @@ impl GraphicsContext {
                     BufferUsage::all(),
                     self.geometry.vertices.iter().cloned(),
                 )
-                .unwrap();
+                    .unwrap();
                 let index_buffer = CpuAccessibleBuffer::from_iter(
                     self.device.clone(),
                     BufferUsage::all(),
                     self.geometry.indices.iter().cloned(),
                 )
-                .unwrap();
+                    .unwrap();
 
                 let clear_values = vec![clear_color.into()];
 
@@ -330,22 +350,22 @@ impl GraphicsContext {
                     self.device.clone(),
                     self.queue.family(),
                 )
-                .unwrap()
-                .begin_render_pass(framebuffers[image_num].clone(), false, clear_values)
-                .unwrap()
-                .draw_indexed(
-                    graphics_pipeline.clone(),
-                    &self.dynamic_state,
-                    vertex_buffer.clone(),
-                    index_buffer.clone(),
-                    (),
-                    (),
-                )
-                .unwrap()
-                .end_render_pass()
-                .unwrap()
-                .build()
-                .unwrap()
+                    .unwrap()
+                    .begin_render_pass(framebuffers[image_num].clone(), false, clear_values)
+                    .unwrap()
+                    .draw_indexed(
+                        graphics_pipeline.clone(),
+                        &self.dynamic_state,
+                        vertex_buffer.clone(),
+                        index_buffer.clone(),
+                        set.clone(),
+                        (),
+                    )
+                    .unwrap()
+                    .end_render_pass()
+                    .unwrap()
+                    .build()
+                    .unwrap()
             };
 
             let future = previous_frame_end
@@ -417,11 +437,11 @@ fn window_size_dependent_setup(
         .map(|image| {
             Arc::new(
                 Framebuffer::start(render_pass.clone())
-                    .add(image.clone())
-                    .unwrap()
-                    .build()
-                    .unwrap(),
+                .add(image.clone())
+                .unwrap()
+                .build()
+                .unwrap(),
             ) as Arc<dyn FramebufferAbstract + Send + Sync>
         })
-        .collect::<Vec<_>>()
+    .collect::<Vec<_>>()
 }
