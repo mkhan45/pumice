@@ -85,6 +85,9 @@ pub struct GraphicsContext {
     vertex_shader: vs::Shader,
     fragment_shader: fs::Shader,
     geometry: VertexBuffers<Vertex, u16>,
+    pub surface: Arc<vulkano::swapchain::Surface<Window>>,
+    events_loop: EventsLoop,
+    pub scale: [f32; 2],
 }
 
 impl GraphicsContext {
@@ -132,6 +135,11 @@ impl GraphicsContext {
             ..DynamicState::none()
         };
 
+        let mut events_loop = EventsLoop::new();
+        let surface = WindowBuilder::new()
+            .build_vk_surface(&events_loop, instance.clone())
+            .unwrap();
+
         GraphicsContext {
             instance,
             device,
@@ -140,6 +148,9 @@ impl GraphicsContext {
             vertex_shader: vs,
             fragment_shader: fs,
             geometry: VertexBuffers::new(),
+            surface,
+            events_loop,
+            scale: [1.0, 1.0],
         }
     }
 
@@ -203,17 +214,12 @@ impl GraphicsContext {
         handle_event: &dyn Fn(&winit::Event, &mut D),
         clear_color: [f32; 4],
     ) {
-        let mut events_loop = EventsLoop::new();
-        let surface = WindowBuilder::new()
-            .build_vk_surface(&events_loop, self.instance.clone())
-            .unwrap();
-        let window = surface.window();
 
         let physical = PhysicalDevice::enumerate(&self.instance)
             .next()
             .expect("no device available");
 
-        let caps = surface
+        let caps = self.surface
             .capabilities(physical)
             .expect("failed to get surface capabilities");
         let dimensions = caps.current_extent.unwrap_or([1280, 1024]);
@@ -222,7 +228,7 @@ impl GraphicsContext {
 
         let (mut swapchain, images) = Swapchain::new(
             self.device.clone(),
-            surface.clone(),
+            self.surface.clone(),
             caps.min_image_count,
             format,
             dimensions,
@@ -275,11 +281,16 @@ impl GraphicsContext {
         let mut recreate_swapchain = false;
         let uniform_buffer = CpuBufferPool::<vs::ty::Data>::new(self.device.clone(), BufferUsage::all());
 
+        let (window_size, hidpi_factor) = {
+            let surface = self.surface.window();
+            (surface.get_inner_size(), surface.get_hidpi_factor())
+        };
+
         loop {
             if recreate_swapchain {
-                if let Some(dimensions) = window.get_inner_size() {
+                if let Some(dimensions) = window_size {
                     let dimensions: (u32, u32) =
-                        dimensions.to_physical(window.get_hidpi_factor()).into();
+                        dimensions.to_physical(hidpi_factor).into();
                     let dimensions = [dimensions.0, dimensions.1];
 
                     let (new_swapchain, new_images) =
@@ -301,12 +312,8 @@ impl GraphicsContext {
             }
 
             let uniform_buffer_subbuffer = {
-                let window_size = window.get_inner_size().unwrap();
-                let scale = [(window_size.height / window_size.width) as f32, 1.0f32];
-                // let scale = [1.0f32, (window_size.width / window_size.height) as f32];
-
                 let uniform_data = vs::ty::Data {
-                    scale,
+                    scale: self.scale,
                 };
 
                 uniform_buffer.next(uniform_data).unwrap()
@@ -327,7 +334,6 @@ impl GraphicsContext {
                     Err(err) => panic!("error acquiring next image {:?}", err),
                 };
 
-            // main loop stuff goes here
             update(&mut self, data);
 
             let command_buffer = {
@@ -394,7 +400,7 @@ impl GraphicsContext {
             self.geometry.indices.clear();
 
             let mut close = false;
-            events_loop.poll_events(|event| {
+            self.events_loop.poll_events(|event| {
                 handle_event(&event, data);
                 match event {
                     winit::Event::WindowEvent {

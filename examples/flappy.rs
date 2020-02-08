@@ -65,6 +65,12 @@ impl Data {
 }
 
 fn update(ctx: &mut GraphicsContext, data: &mut Data) {
+    {
+        let window = ctx.surface.window();
+        let win_size = window.get_inner_size().unwrap();
+        ctx.scale = [(win_size.height / win_size.width) as f32, 1.0]
+    }
+
     ctx.new_rectangle(
         [BIRD_X - BIRD_WIDTH / 2.0, data.bird_y],
         [BIRD_WIDTH, BIRD_HEIGHT],
