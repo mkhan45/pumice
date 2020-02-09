@@ -4,19 +4,19 @@ use pumice::GraphicsContext;
 extern crate rand;
 use rand::prelude::*;
 
-const BIRD_X: f32 = -0.8;
 const BIRD_WIDTH: f32 = 0.15;
 const BIRD_HEIGHT: f32 = 0.135;
 
-const PIPE_WIDTH: f32 = 0.275;
-const PIPE_HEIGHT: f32 = 2.5;
-const PIPE_V_GAP: f32 = 0.265;
-const PIPE_H_GAP: f32 = 1.15;
+const PIPE_WIDTH: f32 = 0.3;
+const PIPE_HEIGHT: f32 = 3.5;
+const PIPE_V_GAP: f32 = 0.263;
+const PIPE_H_GAP: f32 = 1.3;
+const PIPE_SPAWN_RANGE: f32 = 0.55;
 
 const GRAVITY: f32 = 0.0023;
 const JUMP_VEL: f32 = -0.075;
 
-const SPEED: f32 = 0.015;
+const SPEED: f32 = 0.01615;
 
 #[derive(Copy, Clone)]
 struct PipePair {
@@ -30,7 +30,7 @@ impl PipePair {
 
         PipePair {
             x,
-            midpoint_y: StdRng::from_entropy().sample(Uniform::from(-0.52..0.52)),
+            midpoint_y: StdRng::from_entropy().sample(Uniform::from(-PIPE_SPAWN_RANGE..PIPE_SPAWN_RANGE)),
         }
     }
 
@@ -47,6 +47,7 @@ impl PipePair {
 }
 
 struct Data {
+    bird_x: f32,
     bird_y: f32,
     bird_vel: f32,
     score: usize,
@@ -56,6 +57,7 @@ struct Data {
 impl Data {
     pub fn new() -> Self {
         Data {
+            bird_x: -0.75,
             bird_y: 0.0,
             bird_vel: -0.02,
             score: 0,
@@ -69,11 +71,11 @@ fn update(ctx: &mut GraphicsContext, data: &mut Data) {
         let window = ctx.surface.window();
         let win_size = window.get_inner_size().unwrap();
         ctx.screen_maxes = [(win_size.width / win_size.height) as f32, 1.0];
-        dbg!(win_size.width / win_size.height);
+        data.bird_x = -ctx.screen_maxes[0] + BIRD_HEIGHT * 1.1;
     }
 
     ctx.new_rectangle(
-        [BIRD_X - BIRD_WIDTH / 2.0, data.bird_y],
+        [data.bird_x - BIRD_WIDTH / 2.0, data.bird_y],
         [BIRD_WIDTH, BIRD_HEIGHT],
         [1.0, 0.0, 0.0, 1.0],
     );
@@ -96,19 +98,22 @@ fn update(ctx: &mut GraphicsContext, data: &mut Data) {
             .unwrap();
 
         let bird_y = data.bird_y;
+        let bird_x = data.bird_x;
         let mut score = data.score;
 
         data.pipes.iter_mut().for_each(|pipe_pair| {
             pipe_pair.x -= SPEED;
 
-            let rside = BIRD_X + BIRD_WIDTH / 2.0;
+            let rside = bird_x + BIRD_WIDTH / 2.0;
             let rside_diff = rside - pipe_pair.x;
 
-            let lside = BIRD_X - BIRD_WIDTH / 2.0;
+            let lside = bird_x - BIRD_WIDTH / 2.0;
             let lside_diff = lside - (pipe_pair.x);
 
             if (rside_diff <= PIPE_WIDTH && rside_diff >= 0.0)
                 || (lside_diff <= PIPE_WIDTH && lside_diff >= 0.0)
+                    ||
+                    bird_y > 1.0
             {
                 if bird_y < pipe_pair.midpoint_y - PIPE_V_GAP
                     || bird_y + BIRD_HEIGHT > pipe_pair.midpoint_y + PIPE_V_GAP
