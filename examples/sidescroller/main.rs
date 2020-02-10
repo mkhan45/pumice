@@ -25,8 +25,7 @@ struct Data {
     obstacles: Vec<Obstacle>,
 }
 
-fn update(ctx: &mut GraphicsContext, data: &mut Data) {
-}
+fn update(ctx: &mut GraphicsContext, data: &mut Data) {}
 
 fn handle_event(winit_event: &winit::Event, data: &mut Data) {
     if let winit::Event::DeviceEvent {
@@ -36,10 +35,7 @@ fn handle_event(winit_event: &winit::Event, data: &mut Data) {
     {
         let keycode = input.virtual_keycode;
         match keycode {
-            Some(winit::VirtualKeyCode::Space) => {
-                if input.state == winit::ElementState::Pressed {
-                }
-            }
+            Some(winit::VirtualKeyCode::Space) => if input.state == winit::ElementState::Pressed {},
             _ => {}
         }
     }
@@ -47,8 +43,7 @@ fn handle_event(winit_event: &winit::Event, data: &mut Data) {
 
 fn main() {
     let ctx = GraphicsContext::new();
-    let mut data = Data {
-    };
+    let mut data = Data {};
 
     ctx.run::<Data>(&mut data, &update, &handle_event, [0.95, 0.95, 0.95, 1.0]);
 }

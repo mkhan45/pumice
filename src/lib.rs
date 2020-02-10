@@ -1,8 +1,8 @@
 pub use winit;
 
+use vulkano::descriptor::descriptor_set::PersistentDescriptorSet;
 use vulkano::device::{Device, DeviceExtensions, Features, Queue};
 use vulkano::instance::{Instance, PhysicalDevice};
-use vulkano::descriptor::descriptor_set::PersistentDescriptorSet;
 
 use vulkano::buffer::{BufferUsage, CpuAccessibleBuffer};
 use vulkano::command_buffer::AutoCommandBufferBuilder;
@@ -19,9 +19,9 @@ use vulkano::pipeline::GraphicsPipeline;
 use vulkano::command_buffer::DynamicState;
 use vulkano::pipeline::viewport::Viewport;
 
+use vulkano::buffer::CpuBufferPool;
 use vulkano::image::swapchain::SwapchainImage;
 use vulkano::swapchain::{PresentMode, SurfaceTransform, Swapchain};
-use vulkano::buffer::CpuBufferPool;
 
 use lyon::math::Point;
 use lyon::path::Path;
@@ -45,15 +45,16 @@ use vulkano::swapchain::SwapchainCreationError;
 use vulkano::sync::FlushError;
 
 pub mod error;
-pub use error::PumiceError;
+pub use error::{PumiceError, PumiceResult};
 
 #[derive(Default, Copy, Clone, Debug)]
 pub struct Vertex {
     pub position: [f32; 2],
     pub color: [f32; 4],
+    pub rot: [f32; 3], //degrees, x, y
 }
 
-vulkano::impl_vertex!(Vertex, position, color);
+vulkano::impl_vertex!(Vertex, position, color, rot);
 
 struct WithColor([f32; 4]);
 
@@ -62,8 +63,25 @@ impl BasicVertexConstructor<Vertex> for WithColor {
         Vertex {
             position: [position.x, position.y],
             color: self.0,
+            rot: [0.0, 0.0, 0.0],
         }
     }
+}
+
+struct WithColorRotCenter([f32; 4], [f32; 3]);
+impl BasicVertexConstructor<Vertex> for WithColorRotCenter {
+    fn new_vertex(&mut self, position: Point) -> Vertex {
+        Vertex {
+            position: [position.x, position.y],
+            color: self.0,
+            rot: self.1,
+        }
+    }
+}
+
+pub struct Rotation {
+    pub degrees: f32,
+    pub point: [f32; 2],
 }
 
 mod vs {
@@ -121,7 +139,7 @@ impl GraphicsContext {
                 },
                 [(queue_family, 0.5)].iter().cloned(),
             )
-                .expect("failed to create device")
+            .expect("failed to create device")
         };
 
         let queue = queues.next().unwrap();
@@ -157,7 +175,12 @@ impl GraphicsContext {
         }
     }
 
-    pub fn new_circle(&mut self, pos: impl Into<Point>, rad: f32, color: [f32; 4]) -> Result<(), PumiceError> {
+    pub fn new_circle(
+        &mut self,
+        pos: impl Into<Point>,
+        rad: f32,
+        color: [f32; 4],
+    ) -> PumiceResult<()> {
         let options = FillOptions::tolerance(0.0001);
         let mut buffer_builder = BuffersBuilder::new(&mut self.geometry, WithColor(color));
         match basic_shapes::fill_circle(pos.into(), rad, &options, &mut buffer_builder) {
@@ -171,17 +194,62 @@ impl GraphicsContext {
         pos: impl Into<Point>,
         sides: impl Into<Size>,
         color: [f32; 4],
-    ) -> Result<(), PumiceError> {
+    ) -> PumiceResult<()> {
+        self.new_rectangle_full(pos, sides, color, None)
+    }
+
+    pub fn new_rectangle_rotcenter(
+        &mut self,
+        pos: impl Into<Point>,
+        sides: impl Into<Size>,
+        rot: f32,
+        color: [f32; 4],
+    ) -> PumiceResult<()> {
+        let point = pos.into();
+        let sides = sides.into();
+        self.new_rectangle_full(
+            point,
+            sides,
+            color,
+            Some(Rotation {
+                degrees: rot,
+                point: [point.x + sides.width / 2.0, point.y + sides.height / 2.0],
+            }),
+        )
+    }
+
+    pub fn new_rectangle_full(
+        &mut self,
+        pos: impl Into<Point>,
+        sides: impl Into<Size>,
+        color: [f32; 4],
+        rot: Option<Rotation>, //degrees
+    ) -> PumiceResult<()> {
         let options = FillOptions::non_zero();
         let rect = Rect::new(pos.into(), sides.into());
-        let mut buffer_builder = BuffersBuilder::new(&mut self.geometry, WithColor(color));
-        match basic_shapes::fill_rectangle(&rect, &options, &mut buffer_builder) {
-            Ok(_) => Ok(()),
-            Err(tesselate_error) => Err(PumiceError::from(tesselate_error)),
+        if let Some(rot) = rot {
+            let mut buffer_builder = BuffersBuilder::new(
+                &mut self.geometry,
+                WithColorRotCenter(color, [rot.degrees, rot.point[0], rot.point[1]]),
+            );
+            match basic_shapes::fill_rectangle(&rect, &options, &mut buffer_builder) {
+                Ok(_) => Ok(()),
+                Err(tesselate_error) => Err(PumiceError::from(tesselate_error)),
+            }
+        } else {
+            let mut buffer_builder = BuffersBuilder::new(&mut self.geometry, WithColor(color));
+            match basic_shapes::fill_rectangle(&rect, &options, &mut buffer_builder) {
+                Ok(_) => Ok(()),
+                Err(tesselate_error) => Err(PumiceError::from(tesselate_error)),
+            }
         }
     }
 
-    pub fn new_quad(&mut self, points: [impl Into<Point> + Copy; 4], color: [f32; 4]) -> Result<(), PumiceError> {
+    pub fn new_quad(
+        &mut self,
+        points: [impl Into<Point> + Copy; 4],
+        color: [f32; 4],
+    ) -> PumiceResult<()> {
         let options = FillOptions::non_zero();
         let mut buffer_builder = BuffersBuilder::new(&mut self.geometry, WithColor(color));
         let result = basic_shapes::fill_quad(
@@ -223,16 +291,16 @@ impl GraphicsContext {
     pub fn run<D>(
         mut self,
         data: &mut D,
-        update: &dyn Fn(&mut GraphicsContext, &mut D),
-        handle_event: &dyn Fn(&winit::Event, &mut D),
+        update: &dyn Fn(&mut GraphicsContext, &mut D) -> PumiceResult<()>,
+        handle_event: &dyn Fn(&winit::Event, &mut D) -> PumiceResult<()>,
         clear_color: [f32; 4],
     ) {
-
         let physical = PhysicalDevice::enumerate(&self.instance)
             .next()
             .expect("no device available");
 
-        let caps = self.surface
+        let caps = self
+            .surface
             .capabilities(physical)
             .expect("failed to get surface capabilities");
         let dimensions = caps.current_extent.unwrap_or([1280, 1024]);
@@ -254,7 +322,7 @@ impl GraphicsContext {
             true,
             None,
         )
-            .expect("failed to create swapchain");
+        .expect("failed to create swapchain");
 
         let mut previous_frame_end =
             Box::new(vulkano::sync::now(self.device.clone())) as Box<dyn GpuFuture>;
@@ -282,17 +350,18 @@ impl GraphicsContext {
 
         let graphics_pipeline = Arc::new(
             GraphicsPipeline::start()
-            .vertex_input_single_buffer::<Vertex>()
-            .vertex_shader(self.vertex_shader.main_entry_point(), ())
-            .viewports_dynamic_scissors_irrelevant(1)
-            .fragment_shader(self.fragment_shader.main_entry_point(), ())
-            .render_pass(Subpass::from(render_pass.clone(), 0).unwrap())
-            .build(self.device.clone())
-            .unwrap(),
+                .vertex_input_single_buffer::<Vertex>()
+                .vertex_shader(self.vertex_shader.main_entry_point(), ())
+                .viewports_dynamic_scissors_irrelevant(1)
+                .fragment_shader(self.fragment_shader.main_entry_point(), ())
+                .render_pass(Subpass::from(render_pass.clone(), 0).unwrap())
+                .build(self.device.clone())
+                .unwrap(),
         );
 
         let mut recreate_swapchain = false;
-        let uniform_buffer = CpuBufferPool::<vs::ty::Data>::new(self.device.clone(), BufferUsage::all());
+        let uniform_buffer =
+            CpuBufferPool::<vs::ty::Data>::new(self.device.clone(), BufferUsage::all());
 
         let (window_size, hidpi_factor) = {
             let surface = self.surface.window();
@@ -302,8 +371,7 @@ impl GraphicsContext {
         loop {
             if recreate_swapchain {
                 if let Some(dimensions) = window_size {
-                    let dimensions: (u32, u32) =
-                        dimensions.to_physical(hidpi_factor).into();
+                    let dimensions: (u32, u32) = dimensions.to_physical(hidpi_factor).into();
                     let dimensions = [dimensions.0, dimensions.1];
 
                     let (new_swapchain, new_images) =
@@ -332,9 +400,12 @@ impl GraphicsContext {
                 uniform_buffer.next(uniform_data).unwrap()
             };
 
-            let set = Arc::new(PersistentDescriptorSet::start(graphics_pipeline.clone(), 0)
-                .add_buffer(uniform_buffer_subbuffer).unwrap()
-                .build().unwrap()
+            let set = Arc::new(
+                PersistentDescriptorSet::start(graphics_pipeline.clone(), 0)
+                    .add_buffer(uniform_buffer_subbuffer)
+                    .unwrap()
+                    .build()
+                    .unwrap(),
             );
 
             let (image_num, acquire_future) =
@@ -343,7 +414,7 @@ impl GraphicsContext {
                     Err(AcquireError::OutOfDate) => {
                         recreate_swapchain = true;
                         continue;
-                }
+                    }
                     Err(err) => panic!("error acquiring next image {:?}", err),
                 };
 
@@ -355,13 +426,13 @@ impl GraphicsContext {
                     BufferUsage::all(),
                     self.geometry.vertices.iter().cloned(),
                 )
-                    .unwrap();
+                .unwrap();
                 let index_buffer = CpuAccessibleBuffer::from_iter(
                     self.device.clone(),
                     BufferUsage::all(),
                     self.geometry.indices.iter().cloned(),
                 )
-                    .unwrap();
+                .unwrap();
 
                 let clear_values = vec![clear_color.into()];
 
@@ -369,22 +440,22 @@ impl GraphicsContext {
                     self.device.clone(),
                     self.queue.family(),
                 )
-                    .unwrap()
-                    .begin_render_pass(framebuffers[image_num].clone(), false, clear_values)
-                    .unwrap()
-                    .draw_indexed(
-                        graphics_pipeline.clone(),
-                        &self.dynamic_state,
-                        vertex_buffer.clone(),
-                        index_buffer.clone(),
-                        set.clone(),
-                        (),
-                    )
-                    .unwrap()
-                    .end_render_pass()
-                    .unwrap()
-                    .build()
-                    .unwrap()
+                .unwrap()
+                .begin_render_pass(framebuffers[image_num].clone(), false, clear_values)
+                .unwrap()
+                .draw_indexed(
+                    graphics_pipeline.clone(),
+                    &self.dynamic_state,
+                    vertex_buffer.clone(),
+                    index_buffer.clone(),
+                    set.clone(),
+                    (),
+                )
+                .unwrap()
+                .end_render_pass()
+                .unwrap()
+                .build()
+                .unwrap()
             };
 
             let future = previous_frame_end
@@ -456,11 +527,11 @@ fn window_size_dependent_setup(
         .map(|image| {
             Arc::new(
                 Framebuffer::start(render_pass.clone())
-                .add(image.clone())
-                .unwrap()
-                .build()
-                .unwrap(),
+                    .add(image.clone())
+                    .unwrap()
+                    .build()
+                    .unwrap(),
             ) as Arc<dyn FramebufferAbstract + Send + Sync>
         })
-    .collect::<Vec<_>>()
+        .collect::<Vec<_>>()
 }

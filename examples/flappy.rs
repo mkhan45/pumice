@@ -1,10 +1,11 @@
+use pumice::error::PumiceResult;
 use pumice::winit::{self, DeviceEvent, ElementState, VirtualKeyCode};
 use pumice::GraphicsContext;
 
 extern crate rand;
 use rand::prelude::*;
 
-const BIRD_WIDTH: f32 = 0.15;
+const BIRD_WIDTH: f32 = 0.195;
 const BIRD_HEIGHT: f32 = 0.135;
 
 const PIPE_WIDTH: f32 = 0.3;
@@ -30,19 +31,18 @@ impl PipePair {
 
         PipePair {
             x,
-            midpoint_y: StdRng::from_entropy().sample(Uniform::from(-PIPE_SPAWN_RANGE..PIPE_SPAWN_RANGE)),
+            midpoint_y: StdRng::from_entropy()
+                .sample(Uniform::from(-PIPE_SPAWN_RANGE..PIPE_SPAWN_RANGE)),
         }
     }
 
     pub fn init() -> [Self; 6] {
-        [
-            PipePair::new(1.0),
-            PipePair::new(1.0 + PIPE_H_GAP),
-            PipePair::new(1.0 + PIPE_H_GAP * 2.0),
-            PipePair::new(1.0 + PIPE_H_GAP * 3.0),
-            PipePair::new(1.0 + PIPE_H_GAP * 4.0),
-            PipePair::new(1.0 + PIPE_H_GAP * 5.0),
-        ]
+        use std::convert::TryInto;
+        (0..6)
+            .map(|i| PipePair::new(1.0 + i as f32 * PIPE_H_GAP))
+            .collect::<Vec<PipePair>>()[..6]
+            .try_into()
+            .unwrap()
     }
 }
 
@@ -50,6 +50,7 @@ struct Data {
     bird_x: f32,
     bird_y: f32,
     bird_vel: f32,
+    bird_rot: f32,
     score: usize,
     pipes: [PipePair; 6],
 }
@@ -60,13 +61,14 @@ impl Data {
             bird_x: -0.75,
             bird_y: 0.0,
             bird_vel: -0.02,
+            bird_rot: 0.0,
             score: 0,
             pipes: PipePair::init(),
         }
     }
 }
 
-fn update(ctx: &mut GraphicsContext, data: &mut Data) {
+fn update(ctx: &mut GraphicsContext, data: &mut Data) -> PumiceResult<()> {
     {
         let window = ctx.surface.window();
         let win_size = window.get_inner_size().unwrap();
@@ -74,11 +76,12 @@ fn update(ctx: &mut GraphicsContext, data: &mut Data) {
         data.bird_x = -ctx.screen_maxes[0] + BIRD_HEIGHT * 1.1;
     }
 
-    ctx.new_rectangle(
+    ctx.new_rectangle_rotcenter(
         [data.bird_x - BIRD_WIDTH / 2.0, data.bird_y],
         [BIRD_WIDTH, BIRD_HEIGHT],
+        data.bird_rot,
         [1.0, 0.0, 0.0, 1.0],
-    );
+    )?;
 
     // update pipes
     {
@@ -86,8 +89,10 @@ fn update(ctx: &mut GraphicsContext, data: &mut Data) {
             let pos1 = [pipe_pair.x, pipe_pair.midpoint_y - PIPE_V_GAP - PIPE_HEIGHT];
             let pos2 = [pipe_pair.x, pipe_pair.midpoint_y + PIPE_V_GAP];
 
-            ctx.new_rectangle(pos1, [PIPE_WIDTH, PIPE_HEIGHT], [0.0, 1.0, 0.0, 1.0]);
-            ctx.new_rectangle(pos2, [PIPE_WIDTH, PIPE_HEIGHT], [0.0, 1.0, 0.0, 1.0]);
+            ctx.new_rectangle(pos1, [PIPE_WIDTH, PIPE_HEIGHT], [0.0, 1.0, 0.0, 1.0])
+                .unwrap();
+            ctx.new_rectangle(pos2, [PIPE_WIDTH, PIPE_HEIGHT], [0.0, 1.0, 0.0, 1.0])
+                .unwrap();
         });
 
         let max_x = data
@@ -112,8 +117,7 @@ fn update(ctx: &mut GraphicsContext, data: &mut Data) {
 
             if (rside_diff <= PIPE_WIDTH && rside_diff >= 0.0)
                 || (lside_diff <= PIPE_WIDTH && lside_diff >= 0.0)
-                    ||
-                    bird_y > 1.0
+                || bird_y > 1.0
             {
                 if bird_y < pipe_pair.midpoint_y - PIPE_V_GAP
                     || bird_y + BIRD_HEIGHT > pipe_pair.midpoint_y + PIPE_V_GAP
@@ -133,9 +137,14 @@ fn update(ctx: &mut GraphicsContext, data: &mut Data) {
 
     data.bird_vel += GRAVITY;
     data.bird_y += data.bird_vel;
+
+    let target_rot = (data.bird_vel * 420.0).min(42.0).max(-42.0);
+    data.bird_rot += (target_rot - data.bird_rot) * 0.5;
+
+    Ok(())
 }
 
-fn handle_event(winit_event: &winit::Event, data: &mut Data) {
+fn handle_event(winit_event: &winit::Event, data: &mut Data) -> PumiceResult<()> {
     if let winit::Event::DeviceEvent {
         event: DeviceEvent::Key(input),
         ..
@@ -159,6 +168,7 @@ fn handle_event(winit_event: &winit::Event, data: &mut Data) {
             _ => {}
         }
     }
+    Ok(())
 }
 
 fn main() {

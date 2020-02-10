@@ -7,9 +7,19 @@ I wanted to make a game engine and learn vulkan with `vulkano`. It might become 
 
 ## Goals:
 - [X] Proper color input
-- [ ] Some way to handle different window sizes
+- [X] Some way to handle different window sizes
 - [ ] Better input handling
 - [ ] Support for custom shaders?
+- [ ] Sprites?
+
+Try out the examples:
+```
+cargo run --example flappy
+```
+or
+```
+cargo run --example bouncy
+```
 
 ## Simple Example:
 ```rust

@@ -6,13 +6,15 @@ use lyon;
 
 #[derive(Debug, Clone)]
 pub enum PumiceError {
-    LyonError(String)
+    LyonError(String),
 }
+
+pub type PumiceResult<T> = Result<T, PumiceError>;
 
 impl fmt::Display for PumiceError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            PumiceError::LyonError(ref s) => write!(f, "Lyon error: {}", s)
+            PumiceError::LyonError(ref s) => write!(f, "Lyon error: {}", s),
         }
     }
 }
