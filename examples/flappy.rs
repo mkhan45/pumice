@@ -1,5 +1,5 @@
 use pumice::error::PumiceResult;
-use pumice::winit::{self, DeviceEvent, ElementState, VirtualKeyCode};
+use pumice::winit::{self, DeviceEvent, ElementState, Event, VirtualKeyCode, WindowEvent};
 use pumice::GraphicsContext;
 
 extern crate rand;
@@ -69,10 +69,10 @@ impl Data {
 }
 
 fn update(ctx: &mut GraphicsContext, data: &mut Data) -> PumiceResult<()> {
-    {
+    if ctx.screen_size_changed {
         let window = ctx.surface.window();
-        let win_size = window.get_inner_size().unwrap();
-        ctx.screen_maxes = [(win_size.width / win_size.height) as f32, 1.0];
+        let screen_size = window.get_inner_size().unwrap();
+        ctx.screen_maxes = [(screen_size.width / screen_size.height) as f32, 1.0];
         data.bird_x = -ctx.screen_maxes[0] + BIRD_HEIGHT * 1.1;
     }
 
@@ -145,36 +145,38 @@ fn update(ctx: &mut GraphicsContext, data: &mut Data) -> PumiceResult<()> {
 }
 
 fn handle_event(winit_event: &winit::Event, data: &mut Data) -> PumiceResult<()> {
-    if let winit::Event::DeviceEvent {
-        event: DeviceEvent::Key(input),
-        ..
-    } = winit_event
-    {
-        let keycode = input.virtual_keycode;
-        match keycode {
-            Some(VirtualKeyCode::Space) => {
-                if input.state == ElementState::Pressed {
-                    if data.bird_vel >= 0.00 {
-                        data.bird_vel *= 0.5;
-                    }
+    match winit_event {
+        Event::DeviceEvent {
+            event: DeviceEvent::Key(input),
+            ..
+        } => {
+            let keycode = input.virtual_keycode;
+            match keycode {
+                Some(VirtualKeyCode::Space) => {
+                    if input.state == ElementState::Pressed {
+                        if data.bird_vel >= 0.00 {
+                            data.bird_vel *= 0.5;
+                        }
 
-                    data.bird_vel += JUMP_VEL;
+                        data.bird_vel += JUMP_VEL;
 
-                    if data.bird_vel <= -0.00 {
-                        data.bird_vel *= 0.5;
+                        if data.bird_vel <= -0.00 {
+                            data.bird_vel *= 0.5;
+                        }
                     }
                 }
+                _ => {}
             }
-            _ => {}
         }
+        _ => {}
     }
     Ok(())
 }
 
-fn main() {
+fn main() -> PumiceResult<()> {
     let ctx = GraphicsContext::new();
 
     let mut data = Data::new();
 
-    ctx.run::<Data>(&mut data, &update, &handle_event, [0.95, 0.95, 0.95, 1.0]);
+    ctx.run::<Data>(&mut data, &update, &handle_event, [0.95, 0.95, 0.95, 1.0])
 }

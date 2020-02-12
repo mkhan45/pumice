@@ -1,5 +1,6 @@
 use pumice::winit;
 use pumice::GraphicsContext;
+use pumice::PumiceResult;
 
 const RADIUS: f32 = 0.175;
 
@@ -14,13 +15,13 @@ struct Data {
 
 // the main update function that accepts an &mut GraphicsContext and Data
 // drawing and updating data are both done here.
-fn update(ctx: &mut GraphicsContext, data: &mut Data) {
+fn update(ctx: &mut GraphicsContext, data: &mut Data) -> PumiceResult<()> {
     {
         let window = ctx.surface.window();
         let win_size = window.get_inner_size().unwrap();
         ctx.screen_maxes = [(win_size.width / win_size.height) as f32, 1.0]
     }
-    ctx.new_circle([data.x, data.y], RADIUS, [1.0, 0.0, 0.0, 1.0]);
+    ctx.new_circle([data.x, data.y], RADIUS, [1.0, 0.0, 0.0, 1.0])?;
 
     if !data.paused {
         data.x += data.dx;
@@ -33,10 +34,11 @@ fn update(ctx: &mut GraphicsContext, data: &mut Data) {
             data.dy *= -1.0;
         }
     }
+    Ok(())
 }
 
 // Right now the winit events aren't preparsed in any way but I might change that
-fn handle_event(winit_event: &winit::Event, data: &mut Data) {
+fn handle_event(winit_event: &winit::Event, data: &mut Data) -> PumiceResult<()> {
     if let winit::Event::DeviceEvent {
         event: winit::DeviceEvent::Key(input),
         ..
@@ -52,9 +54,10 @@ fn handle_event(winit_event: &winit::Event, data: &mut Data) {
             _ => {}
         }
     }
+    Ok(())
 }
 
-fn main() {
+fn main() -> PumiceResult<()> {
     let ctx = GraphicsContext::new();
     let mut data = Data {
         x: 0.0,
@@ -66,5 +69,5 @@ fn main() {
 
     // tell ctx the Data struct to use, the update function, event handling function,
     // and clear color
-    ctx.run::<Data>(&mut data, &update, &handle_event, [0.0, 0.0, 0.0, 1.0]);
+    ctx.run::<Data>(&mut data, &update, &handle_event, [0.0, 0.0, 0.0, 1.0])
 }
