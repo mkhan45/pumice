@@ -109,6 +109,7 @@ pub struct GraphicsContext {
     pub surface: Arc<vulkano::swapchain::Surface<Window>>,
     events_loop: EventsLoop,
     pub screen_maxes: [f32; 2],
+    pub screen_size_changed: bool,
 }
 
 impl GraphicsContext {
@@ -172,6 +173,7 @@ impl GraphicsContext {
             surface,
             events_loop,
             screen_maxes: [1.0, 1.0],
+            screen_size_changed: true,
         }
     }
 
@@ -294,7 +296,8 @@ impl GraphicsContext {
         update: &dyn Fn(&mut GraphicsContext, &mut D) -> PumiceResult<()>,
         handle_event: &dyn Fn(&winit::Event, &mut D) -> PumiceResult<()>,
         clear_color: [f32; 4],
-    ) {
+    ) -> PumiceResult<()> {
+        let mut recreate_swapchain = false;
         let physical = PhysicalDevice::enumerate(&self.instance)
             .next()
             .expect("no device available");
@@ -359,17 +362,16 @@ impl GraphicsContext {
                 .unwrap(),
         );
 
-        let mut recreate_swapchain = false;
         let uniform_buffer =
             CpuBufferPool::<vs::ty::Data>::new(self.device.clone(), BufferUsage::all());
 
-        let (window_size, hidpi_factor) = {
-            let surface = self.surface.window();
-            (surface.get_inner_size(), surface.get_hidpi_factor())
-        };
-
         loop {
             if recreate_swapchain {
+                let (window_size, hidpi_factor) = {
+                    let surface = self.surface.window();
+                    (surface.get_inner_size(), surface.get_hidpi_factor())
+                };
+
                 if let Some(dimensions) = window_size {
                     let dimensions: (u32, u32) = dimensions.to_physical(hidpi_factor).into();
                     let dimensions = [dimensions.0, dimensions.1];
@@ -418,7 +420,9 @@ impl GraphicsContext {
                     Err(err) => panic!("error acquiring next image {:?}", err),
                 };
 
-            update(&mut self, data);
+            if let Err(e) = update(&mut self, data) {
+                eprintln!("Error updating: {:?}", e);
+            }
 
             let command_buffer = {
                 let vertex_buffer = CpuAccessibleBuffer::from_iter(
@@ -484,8 +488,11 @@ impl GraphicsContext {
             self.geometry.indices.clear();
 
             let mut close = false;
+            let mut screen_size_changed = false;
             self.events_loop.poll_events(|event| {
-                handle_event(&event, data);
+                if let Err(e) = handle_event(&event, data) {
+                    eprintln!("Error handling events: {:?}", e);
+                };
                 match event {
                     winit::Event::WindowEvent {
                         event: winit::WindowEvent::CloseRequested,
@@ -496,15 +503,25 @@ impl GraphicsContext {
                     winit::Event::WindowEvent {
                         event: winit::WindowEvent::Resized(_),
                         ..
-                    } => recreate_swapchain = true,
+                    } => {
+                        recreate_swapchain = true;
+                        screen_size_changed = true;
+                    }
                     _ => {}
                 };
             });
 
             if close {
-                return;
+                return Ok(());
             }
+            self.screen_size_changed = screen_size_changed;
         }
+    }
+}
+
+impl Default for GraphicsContext {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
