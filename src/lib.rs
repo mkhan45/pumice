@@ -26,6 +26,8 @@ use vulkano::swapchain::{PresentMode, SurfaceTransform, Swapchain};
 use lyon::math::Point;
 use lyon::path::Path;
 use lyon::tessellation::basic_shapes;
+use lyon::tessellation::FillAttributes;
+use lyon::tessellation::FillVertexConstructor;
 use lyon::tessellation::geometry_builder::simple_builder;
 use lyon::tessellation::math::Rect;
 use lyon::tessellation::math::Size;
@@ -51,7 +53,7 @@ pub use error::{PumiceError, PumiceResult};
 pub struct Vertex {
     pub position: [f32; 2],
     pub color: [f32; 4],
-    pub rot: [f32; 3], //degrees, x, y
+    pub rot: [f32; 3], //x, y, degrees
 }
 
 vulkano::impl_vertex!(Vertex, position, color, rot);
@@ -60,6 +62,16 @@ struct WithColor([f32; 4]);
 
 impl BasicVertexConstructor<Vertex> for WithColor {
     fn new_vertex(&mut self, position: Point) -> Vertex {
+        Vertex {
+            position: [position.x, position.y],
+            color: self.0,
+            rot: [0.0, 0.0, 0.0],
+        }
+    }
+}
+
+impl FillVertexConstructor<Vertex> for WithColor {
+    fn new_vertex(&mut self, position: Point, mut attributes: FillAttributes) -> Vertex {
         Vertex {
             position: [position.x, position.y],
             color: self.0,
@@ -232,7 +244,7 @@ impl GraphicsContext {
         if let Some(rot) = rot {
             let mut buffer_builder = BuffersBuilder::new(
                 &mut self.geometry,
-                WithColorRotCenter(color, [rot.degrees, rot.point[0], rot.point[1]]),
+                WithColorRotCenter(color, [rot.point[0], rot.point[1], rot.degrees]),
             );
             match basic_shapes::fill_rectangle(&rect, &options, &mut buffer_builder) {
                 Ok(_) => Ok(()),
@@ -268,27 +280,27 @@ impl GraphicsContext {
         }
     }
 
-    // pub fn new_triangle(&mut self, points: [impl Into<Point> + Copy; 3], color: [f32; 4]) {
-    //     let options = FillOptions::default();
-    //     let mut buffer_builder = BuffersBuilder::new(&mut self.geometry, WithColor(color));
+    pub fn new_triangle(&mut self, points: [impl Into<Point> + Copy; 3], color: [f32; 4]) {
+        let options = FillOptions::default();
+        let mut buffer_builder = BuffersBuilder::new(&mut self.geometry, WithColor(color));
 
-    //     let mut path_builder = Path::builder();
-    //     path_builder.move_to(points[0].into());
-    //     path_builder.line_to(points[1].into());
-    //     path_builder.line_to(points[2].into());
-    //     path_builder.close();
+        let mut path_builder = Path::builder();
+        path_builder.move_to(points[0].into());
+        path_builder.line_to(points[1].into());
+        path_builder.line_to(points[2].into());
+        path_builder.close();
 
-    //     let path = path_builder.build();
+        let path = path_builder.build();
 
-    //     let mut tesselator = FillTessellator::new();
-    //     tesselator.tessellate_with_ids(
-    //         path.id_iter(),
-    //         &path,
-    //         Some(&path),
-    //         &options,
-    //         &mut buffer_builder,
-    //     );
-    // }
+        let mut tesselator = FillTessellator::new();
+        tesselator.tessellate_with_ids(
+            path.id_iter(),
+            &path,
+            Some(&path),
+            &options,
+            &mut buffer_builder,
+        );
+    }
 
     pub fn run<D>(
         mut self,
