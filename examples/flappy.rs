@@ -53,6 +53,7 @@ struct Data {
     bird_rot: f32,
     score: usize,
     pipes: [PipePair; 6],
+    screen_size: [f32; 2],
 }
 
 impl Data {
@@ -64,6 +65,7 @@ impl Data {
             bird_rot: 0.0,
             score: 0,
             pipes: PipePair::init(),
+            screen_size: [1024.0, 1200.0],
         }
     }
 }
@@ -100,7 +102,7 @@ fn update(ctx: &mut GraphicsContext, data: &mut Data) -> PumiceResult<()> {
             .iter()
             .map(|pipe_pair| pipe_pair.x)
             .max_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
-            .unwrap();
+            .unwrap_or(ctx.screen_maxes[0]);
 
         let bird_y = data.bird_y;
         let bird_x = data.bird_x;
@@ -113,7 +115,7 @@ fn update(ctx: &mut GraphicsContext, data: &mut Data) -> PumiceResult<()> {
             let rside_diff = rside - pipe_pair.x;
 
             let lside = bird_x - BIRD_WIDTH / 2.0;
-            let lside_diff = lside - (pipe_pair.x);
+            let lside_diff = lside - pipe_pair.x;
 
             if (rside_diff <= PIPE_WIDTH && rside_diff >= 0.0)
                 || (lside_diff <= PIPE_WIDTH && lside_diff >= 0.0)
@@ -152,7 +154,7 @@ fn handle_event(winit_event: &winit::Event, data: &mut Data) -> PumiceResult<()>
         } => {
             let keycode = input.virtual_keycode;
             match keycode {
-                Some(VirtualKeyCode::Space) => {
+                Some(VirtualKeyCode::Space) | Some(VirtualKeyCode::Up) => {
                     if input.state == ElementState::Pressed {
                         if data.bird_vel >= 0.00 {
                             data.bird_vel *= 0.5;
