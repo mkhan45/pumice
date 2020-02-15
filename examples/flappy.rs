@@ -102,7 +102,7 @@ fn update(ctx: &mut GraphicsContext, data: &mut Data) -> PumiceResult<()> {
             .iter()
             .map(|pipe_pair| pipe_pair.x)
             .max_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
-            .unwrap();
+            .unwrap_or(ctx.screen_maxes[0]);
 
         let bird_y = data.bird_y;
         let bird_x = data.bird_x;
@@ -154,7 +154,7 @@ fn handle_event(winit_event: &winit::Event, data: &mut Data) -> PumiceResult<()>
         } => {
             let keycode = input.virtual_keycode;
             match keycode {
-                Some(VirtualKeyCode::Space) => {
+                Some(VirtualKeyCode::Space) | Some(VirtualKeyCode::Up) => {
                     if input.state == ElementState::Pressed {
                         if data.bird_vel >= 0.00 {
                             data.bird_vel *= 0.5;
