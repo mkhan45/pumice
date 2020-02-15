@@ -115,7 +115,7 @@ fn update(ctx: &mut GraphicsContext, data: &mut Data) -> PumiceResult<()> {
             let rside_diff = rside - pipe_pair.x;
 
             let lside = bird_x - BIRD_WIDTH / 2.0;
-            let lside_diff = lside - (pipe_pair.x);
+            let lside_diff = lside - pipe_pair.x;
 
             if (rside_diff <= PIPE_WIDTH && rside_diff >= 0.0)
                 || (lside_diff <= PIPE_WIDTH && lside_diff >= 0.0)
