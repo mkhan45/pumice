@@ -8,15 +8,24 @@ use rand::prelude::*;
 const GROUND_Y: f32 = 0.6;
 
 const LOW_Y: f32 = 0.5;
-const MID_Y: f32 = 0.2;
-const HIGH_Y: f32 = -0.1;
+const MID_Y: f32 = 0.375;
+const HIGH_Y: f32 = 0.125;
 
 const DINO_WIDTH: f32 = 0.125;
 const DINO_HEIGHT: f32 = 0.275;
 
-const DINO_DUCK_HEIGHT: f32 = 0.15;
+const DINO_DUCK_HEIGHT: f32 = 0.1;
 const DINO_DUCK_WIDTH: f32 = 0.2;
 
+const DINO_JUMP_SPEED: f32 = -0.05;
+const GRAVITY: f32 = 0.005;
+const FLOAT_FRAMES: u8 = 8;
+
+const START_SPEED: f32 = 0.015;
+
+const OBSTACLE_GAP: f32 = 0.8;
+
+#[derive(Copy, Clone, Debug, PartialEq)]
 enum DinoState {
     Air(f32, f32), // y pos, y velocity
     Ground,
@@ -28,6 +37,19 @@ enum ObstacleHeight {
     High,
     Mid,
     Low,
+}
+
+impl ObstacleHeight {
+    fn new() -> Self {
+        use rand::distributions::Uniform;
+        let n = StdRng::from_entropy().sample(Uniform::from(0..10u8));
+        match n {
+            0..=4 => ObstacleHeight::Low,
+            5..=8 => ObstacleHeight::Mid,
+            9..=10 => ObstacleHeight::High,
+            _ => panic!("Wrong rng"),
+        }
+    }
 }
 
 #[derive(Copy, Clone)]
@@ -44,16 +66,19 @@ impl Obstacle {
             ObstacleHeight::Low => LOW_Y,
         };
 
-        Obstacle {
-            x,
-            y
-        }
+        Obstacle { x, y }
     }
 
     pub fn init() -> [Self; 12] {
         use std::convert::TryInto;
+
         (0..12)
-            .map(|i| Obstacle::new(rand::random::<ObstacleHeight>(), 1.0 + i as f32 * 0.3))
+            .map(|i| {
+                Obstacle::new(
+                    ObstacleHeight::new(),
+                    1.0 + i as f32 * OBSTACLE_GAP,
+                )
+            })
             .collect::<Vec<Obstacle>>()[..12]
             .try_into()
             .unwrap()
@@ -63,9 +88,11 @@ impl Obstacle {
 struct Data {
     dino: DinoState,
     dino_x: f32,
+    floated_frames: u8,
     score: usize,
     speed: f32,
     obstacles: [Obstacle; 12],
+    duck_held: bool,
 }
 
 fn update(ctx: &mut GraphicsContext, data: &mut Data) -> PumiceResult<()> {
@@ -76,38 +103,83 @@ fn update(ctx: &mut GraphicsContext, data: &mut Data) -> PumiceResult<()> {
     }
 
     //ground
-    ctx.new_rectangle([-ctx.screen_maxes[0], GROUND_Y], [ctx.screen_maxes[0] * 2.0, 1.0], [0.0, 0.0, 0.0, 1.0]);
+    ctx.new_rectangle(
+        [-ctx.screen_maxes[0], GROUND_Y],
+        [ctx.screen_maxes[0] * 2.0, 1.0],
+        [0.0, 0.0, 0.0, 1.0],
+    );
+
+    if let DinoState::Air(y_pos, vel) = data.dino {
+        let nvel =
+            if y_pos < GROUND_Y && vel > 0.0 && vel < 0.02 && data.floated_frames <= FLOAT_FRAMES {
+                data.floated_frames += 1;
+                vel + (0.0 - vel) * 0.35
+            } else {
+                vel
+            };
+
+        let gravity = if vel < 0.0 {
+            GRAVITY / 1.25
+        } else {
+            GRAVITY
+        };
+
+        data.dino = DinoState::Air((y_pos + nvel).min(GROUND_Y), nvel + gravity);
+
+        if y_pos >= GROUND_Y && vel >= 0.0 {
+            data.dino = DinoState::Ground;
+            data.floated_frames = 0;
+        }
+    }
+
+    if data.duck_held && data.dino == DinoState::Ground {
+        data.dino = DinoState::Duck;
+    } else if data.dino == DinoState::Duck && !data.duck_held {
+        data.dino = DinoState::Ground;
+    }
 
     //dino
     {
         let (dino_y, dino_width, dino_height) = match data.dino {
-            DinoState::Air(y, _) => (y, DINO_WIDTH, DINO_HEIGHT),
+            DinoState::Air(y, _) => (y - DINO_HEIGHT, DINO_WIDTH, DINO_HEIGHT),
             DinoState::Ground => (GROUND_Y - DINO_HEIGHT, DINO_WIDTH, DINO_HEIGHT),
-            DinoState::Duck => (GROUND_Y - DINO_DUCK_HEIGHT, DINO_DUCK_WIDTH, DINO_DUCK_HEIGHT),
+            DinoState::Duck => (
+                GROUND_Y - DINO_DUCK_HEIGHT,
+                DINO_DUCK_WIDTH,
+                DINO_DUCK_HEIGHT,
+            ),
         };
 
-        ctx.new_rectangle([data.dino_x, dino_y], [dino_width, dino_height], [0.0, 0.0, 0.0, 1.0]);
-    }
-    ctx.new_rectangle([-ctx.screen_maxes[0], GROUND_Y], [ctx.screen_maxes[0] * 2.0, 1.0], [0.0, 0.0, 0.0, 1.0]);
-
-    data.obstacles.iter().for_each(|obstacle|{
         ctx.new_rectangle(
-            [obstacle.x, obstacle.y],
-            [0.1, 0.1],
+            [data.dino_x, dino_y],
+            [dino_width, dino_height],
             [0.0, 0.0, 0.0, 1.0],
         );
+    }
+    ctx.new_rectangle(
+        [-ctx.screen_maxes[0], GROUND_Y],
+        [ctx.screen_maxes[0] * 2.0, 1.0],
+        [0.0, 0.0, 0.0, 1.0],
+    );
+
+    data.obstacles.iter().for_each(|obstacle| {
+        ctx.new_rectangle([obstacle.x, obstacle.y], [0.1, 0.1], [0.0, 0.0, 0.0, 1.0]);
     });
 
-    let max_x = data.obstacles.iter()
+    let max_x = data
+        .obstacles
+        .iter()
         .map(|obstacle| obstacle.x)
         .max_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
-        .unwrap_or(ctx.screen_maxes[0]);
+        .unwrap();
 
-    data.obstacles.iter_mut().for_each(|obstacle|{
-        obstacle.x -= 0.025;
+    let speed = data.speed;
+    data.obstacles.iter_mut().for_each(|obstacle| {
+        obstacle.x -= speed;
 
         if obstacle.x + 0.1 <= -ctx.screen_maxes[0] {
-            obstacle.x = max_x + 0.5;
+            let height = ObstacleHeight::new();
+            *obstacle = Obstacle::new(height, max_x + OBSTACLE_GAP);
         }
     });
 
@@ -122,7 +194,20 @@ fn handle_event(winit_event: &winit::Event, data: &mut Data) -> PumiceResult<()>
     {
         let keycode = input.virtual_keycode;
         match keycode {
-            Some(winit::VirtualKeyCode::Space) => if input.state == winit::ElementState::Pressed {},
+            Some(winit::VirtualKeyCode::Space) => {
+                if input.state == winit::ElementState::Pressed && data.dino == DinoState::Ground
+                    || data.dino == DinoState::Duck
+                {
+                    data.dino = DinoState::Air(GROUND_Y, DINO_JUMP_SPEED);
+                }
+            }
+            Some(winit::VirtualKeyCode::LControl) => {
+                if input.state == winit::ElementState::Pressed {
+                    data.duck_held = true;
+                } else if input.state == winit::ElementState::Released {
+                    data.duck_held = false;
+                }
+            }
             _ => {}
         }
     }
@@ -134,9 +219,11 @@ fn main() -> PumiceResult<()> {
     let mut data = Data {
         dino: DinoState::Ground,
         dino_x: -1.5,
+        floated_frames: 0,
         score: 0,
-        speed: 0.01,
+        speed: START_SPEED,
         obstacles: Obstacle::init(),
+        duck_held: false,
     };
 
     ctx.run::<Data>(&mut data, &update, &handle_event, [0.95, 0.95, 0.95, 1.0])
