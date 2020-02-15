@@ -26,14 +26,14 @@ use vulkano::swapchain::{PresentMode, SurfaceTransform, Swapchain};
 use lyon::math::Point;
 use lyon::path::Path;
 use lyon::tessellation::basic_shapes;
-use lyon::tessellation::FillAttributes;
-use lyon::tessellation::FillVertexConstructor;
 use lyon::tessellation::geometry_builder::simple_builder;
 use lyon::tessellation::math::Rect;
 use lyon::tessellation::math::Size;
 use lyon::tessellation::BasicVertexConstructor;
 use lyon::tessellation::BuffersBuilder;
+use lyon::tessellation::FillAttributes;
 use lyon::tessellation::FillTessellator;
+use lyon::tessellation::FillVertexConstructor;
 use lyon::tessellation::{FillOptions, VertexBuffers};
 
 use vulkano_win::VkSurfaceBuild;

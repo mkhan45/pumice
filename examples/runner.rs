@@ -74,12 +74,7 @@ impl Obstacle {
         use std::convert::TryInto;
 
         (0..12)
-            .map(|i| {
-                Obstacle::new(
-                    ObstacleHeight::new(),
-                    1.0 + i as f32 * OBSTACLE_GAP,
-                )
-            })
+            .map(|i| Obstacle::new(ObstacleHeight::new(), 1.0 + i as f32 * OBSTACLE_GAP))
             .collect::<Vec<Obstacle>>()[..12]
             .try_into()
             .unwrap()
@@ -89,6 +84,7 @@ impl Obstacle {
 struct Data {
     dino: DinoState,
     dino_x: f32,
+    dino_rot: f32,
     floated_frames: u8,
     score: usize,
     speed: f32,
@@ -120,12 +116,13 @@ fn update(ctx: &mut GraphicsContext, data: &mut Data) -> PumiceResult<()> {
         let obstacle_center_x = obstacle.x + 0.05;
         let obstacle_center_y = obstacle.y + 0.05;
 
-        if dino_center_x - dino_width / 2.0 < obstacle_center_x + 0.05 &&
-            dino_center_x + dino_width / 2.0 > obstacle_center_x - 0.05 &&
-                dino_center_y - dino_height / 2.0 < obstacle_center_y + 0.05 &&
-                dino_center_y + dino_height / 2.0 > obstacle_center_y - 0.05 {
-                    println!("You Died! Speed: {}", data.speed);
-                    std::process::exit(0);
+        if dino_center_x - dino_width / 2.0 < obstacle_center_x + 0.05
+            && dino_center_x + dino_width / 2.0 > obstacle_center_x - 0.05
+            && dino_center_y - dino_height / 2.0 < obstacle_center_y + 0.05
+            && dino_center_y + dino_height / 2.0 > obstacle_center_y - 0.05
+        {
+            println!("You Died! Speed: {}", data.speed);
+            std::process::exit(0);
         }
     });
 
@@ -169,19 +166,33 @@ fn update(ctx: &mut GraphicsContext, data: &mut Data) -> PumiceResult<()> {
 
     //dino
     {
-        let (dino_y, dino_width, dino_height) = match data.dino {
-            DinoState::Air(y, _) => (y - DINO_HEIGHT, DINO_WIDTH, DINO_HEIGHT),
-            DinoState::Ground => (GROUND_Y - DINO_HEIGHT, DINO_WIDTH, DINO_HEIGHT),
+        let (dino_y, dino_width, dino_height, mut target_rot) = match data.dino {
+            DinoState::Air(y, y_vel) => (
+                y - DINO_HEIGHT,
+                DINO_WIDTH,
+                DINO_HEIGHT,
+                (-y_vel * 250.0 - data.floated_frames as f32)
+                    .min(42.0)
+                    .max(-42.0),
+            ),
+            DinoState::Ground => (GROUND_Y - DINO_HEIGHT, DINO_WIDTH, DINO_HEIGHT, 0.0),
             DinoState::Duck => (
                 GROUND_Y - DINO_DUCK_HEIGHT,
                 DINO_DUCK_WIDTH,
                 DINO_DUCK_HEIGHT,
+                0.0,
             ),
         };
 
-        ctx.new_rectangle(
+        if data.duck_held && target_rot < 0.0 {
+            target_rot *= -0.5;
+        }
+        data.dino_rot += (target_rot - data.dino_rot) * 0.35;
+
+        ctx.new_rectangle_rotcenter(
             [data.dino_x, dino_y],
             [dino_width, dino_height],
+            data.dino_rot,
             [0.0, 0.0, 0.0, 1.0],
         );
     }
@@ -190,7 +201,6 @@ fn update(ctx: &mut GraphicsContext, data: &mut Data) -> PumiceResult<()> {
         [ctx.screen_maxes[0] * 2.0, 1.0],
         [0.0, 0.0, 0.0, 1.0],
     );
-
 
     let max_x = data
         .obstacles
@@ -231,7 +241,9 @@ fn handle_event(winit_event: &winit::Event, data: &mut Data) -> PumiceResult<()>
                     data.dino = DinoState::Air(GROUND_Y, DINO_JUMP_SPEED);
                 }
             }
-            Some(VirtualKeyCode::LControl) | Some(VirtualKeyCode::Down) | Some(VirtualKeyCode::S) => {
+            Some(VirtualKeyCode::LControl)
+            | Some(VirtualKeyCode::Down)
+            | Some(VirtualKeyCode::S) => {
                 if input.state == winit::ElementState::Pressed {
                     data.duck_held = true;
                 } else if input.state == winit::ElementState::Released {
@@ -249,6 +261,7 @@ fn main() -> PumiceResult<()> {
     let mut data = Data {
         dino: DinoState::Ground,
         dino_x: -1.5,
+        dino_rot: 0.0,
         floated_frames: 0,
         score: 0,
         speed: START_SPEED,
