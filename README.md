@@ -8,9 +8,8 @@ I wanted to make a game engine and learn vulkan with `vulkano`. It might become 
 ## Goals:
 - [X] Proper color input
 - [X] Some way to handle different window sizes
-- [ ] Better input handling
 - [ ] Support for custom shaders?
-- [ ] Sprites?
+- [ ] Sprites
 
 Try out the examples:
 ```
