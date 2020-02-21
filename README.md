@@ -1,4 +1,4 @@
-# pumice
+# pumice ![](https://travis-ci.com/mkhan45/pumice.svg?branch=master)
 A vulkano-made light and brittle game engine that rocks
 
 ## Note: Doesn't rock yet
